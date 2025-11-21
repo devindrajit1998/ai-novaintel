@@ -1,4 +1,4 @@
-import { LayoutDashboard, PlusCircle, Sparkles, FileText, FolderKanban, Settings, Lightbulb, Users, TrendingUp, HelpCircle, LogOut } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Sparkles, FileText, FolderKanban, Settings, Lightbulb, Users, TrendingUp, HelpCircle, LogOut, Shield, BarChart3, Briefcase, MessageCircle } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -25,10 +25,17 @@ const mainMenuItems = [
 
 const workspaceItems = [
   { name: "Case Studies", icon: FolderKanban, route: "/case-studies", description: "Your portfolio" },
+  { name: "Chat", icon: MessageCircle, route: "/chat", description: "Internal messaging" },
 ];
 
 const adminItems = [
-  { name: "Admin Dashboard", icon: Users, route: "/admin", description: "Review proposals" },
+  { name: "Dashboard", icon: LayoutDashboard, route: "/admin", description: "Overview" },
+  { name: "Proposals", icon: FileText, route: "/admin/proposals", description: "Review & approve" },
+  { name: "Users", icon: Users, route: "/admin/users", description: "User management" },
+  { name: "Projects", icon: Briefcase, route: "/admin/projects", description: "All projects" },
+  { name: "Analytics", icon: BarChart3, route: "/admin/analytics", description: "Reports & metrics" },
+  { name: "Case Studies", icon: FolderKanban, route: "/admin/case-studies", description: "Manage portfolio" },
+  { name: "Chat", icon: MessageCircle, route: "/admin/chat", description: "Monitor conversations" },
 ];
 
 const settingsItems = [
@@ -50,6 +57,7 @@ export function AppSidebar() {
       <SidebarMenuButton asChild className="h-auto py-0">
         <NavLink
           to={item.route}
+          end={true}
           className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all hover:bg-accent/50 hover:shadow-sm group"
           activeClassName="bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-medium border-l-2 border-primary shadow-sm"
         >
@@ -95,33 +103,33 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 py-4">
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            Main
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {mainMenuItems.map((item) => (
-                <MenuItem key={item.name} item={item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {user?.role !== "pre_sales_manager" && (
+          <>
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu className="space-y-1">
+                  {mainMenuItems.map((item) => (
+                    <MenuItem key={item.name} item={item} />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
 
-        <Separator className="my-4" />
+            <Separator className="my-4" />
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            Workspace
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {workspaceItems.map((item) => (
-                <MenuItem key={item.name} item={item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu className="space-y-1">
+                  {workspaceItems.map((item) => (
+                    <MenuItem key={item.name} item={item} />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <Separator className="my-4" />
+          </>
+        )}
 
         {user?.role === "pre_sales_manager" && (
           <>

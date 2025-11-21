@@ -23,6 +23,7 @@ from models.notification import Notification
 from utils.dependencies import get_current_user
 from services.proposal_templates import ProposalTemplates
 from services.proposal_export import proposal_exporter
+from utils.websocket_manager import global_ws_manager
 
 router = APIRouter()
 
@@ -745,29 +746,31 @@ async def submit_proposal(
         proposal.submitter_message = request.message
         proposal.submitted_at = datetime.utcnow()
         
-        # Create notification and send email to selected manager or all managers
-        MANAGER_ROLE = "pre_sales_manager"
+        # Always send email to all admins (pre_sales_manager role)
+        ADMIN_ROLE = "pre_sales_manager"
         
         # Import email service
         from utils.email_service import send_proposal_submission_email
         
-        if request.manager_id:
-            # Send to specific manager
-            manager = db.query(User).filter(
-                User.id == request.manager_id,
-                User.role == MANAGER_ROLE,
-                User.is_active == True
-            ).first()
-            
-            if not manager:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Selected manager not found or inactive"
-                )
-            
+        # Get all active admins with verified emails
+        admins = db.query(User).filter(
+            User.role == ADMIN_ROLE,
+            User.is_active == True,
+            User.email_verified == True
+        ).all()
+        
+        if not admins:
+            print(f"[WARNING] No active admins with verified emails found. Email notifications will not be sent for proposal {proposal.id}")
+        
+        # Prepare proposal data for email
+        proposal_sections = proposal.sections if proposal.sections else []
+        submitted_at_str = proposal.submitted_at.strftime("%Y-%m-%d %H:%M:%S UTC") if proposal.submitted_at else None
+        
+        # Send email and create notification for all admins
+        for admin in admins:
             # Create in-app notification
             notification = Notification(
-                user_id=manager.id,
+                user_id=admin.id,
                 type="info",
                 title="New Proposal Submitted",
                 message=f"Proposal '{proposal.title}' submitted by {current_user.full_name}",
@@ -775,54 +778,69 @@ async def submit_proposal(
             )
             db.add(notification)
             
-            # Send email notification (non-blocking)
+            # Send email notification with all proposal data (non-blocking)
             try:
                 await send_proposal_submission_email(
-                    manager_email=manager.email,
-                    manager_name=manager.full_name,
+                    manager_email=admin.email,
+                    manager_name=admin.full_name,
                     proposal_title=proposal.title,
                     submitter_name=current_user.full_name,
                     submitter_message=request.message,
                     proposal_id=proposal.id,
-                    project_id=project.id
+                    project_id=project.id,
+                    project_name=project.name,
+                    client_name=project.client_name,
+                    industry=project.industry,
+                    region=project.region,
+                    proposal_sections=proposal_sections,
+                    template_type=proposal.template_type,
+                    submitted_at=submitted_at_str
                 )
             except Exception as e:
-                print(f"[WARNING] Failed to send email to manager {manager.email}: {e}")
-        else:
-            # Send to all managers (backward compatibility)
-            managers = db.query(User).filter(
-                User.role == MANAGER_ROLE,
-                User.is_active == True,
-                User.email_verified == True
-            ).all()
+                print(f"[WARNING] Failed to send email to admin {admin.email}: {e}")
+        
+        # If a specific manager_id was provided, also send notification to that manager
+        # (in addition to all admins, if not already included)
+        if request.manager_id:
+            specific_manager = db.query(User).filter(
+                User.id == request.manager_id,
+                User.role == ADMIN_ROLE,
+                User.is_active == True
+            ).first()
             
-            for manager in managers:
-                # Create in-app notification
-                notification = Notification(
-                    user_id=manager.id,
-                    type="info",
-                    title="New Proposal Submitted",
-                    message=f"Proposal '{proposal.title}' submitted by {current_user.full_name}",
-                    metadata_={"proposal_id": proposal.id, "project_id": project.id, "submitter_id": current_user.id}
-                )
-                db.add(notification)
-                
-                # Send email notification (non-blocking)
-                try:
-                    await send_proposal_submission_email(
-                        manager_email=manager.email,
-                        manager_name=manager.full_name,
-                        proposal_title=proposal.title,
-                        submitter_name=current_user.full_name,
-                        submitter_message=request.message,
-                        proposal_id=proposal.id,
-                        project_id=project.id
+            if specific_manager:
+                # Check if this manager is already in the admins list (to avoid duplicate notifications)
+                admin_ids = [admin.id for admin in admins]
+                if specific_manager.id not in admin_ids:
+                    # Create additional notification for specific manager if not already an admin
+                    notification = Notification(
+                        user_id=specific_manager.id,
+                        type="info",
+                        title="New Proposal Submitted",
+                        message=f"Proposal '{proposal.title}' submitted by {current_user.full_name}",
+                        metadata_={"proposal_id": proposal.id, "project_id": project.id, "submitter_id": current_user.id}
                     )
-                except Exception as e:
-                    print(f"[WARNING] Failed to send email to manager {manager.email}: {e}")
+                    db.add(notification)
         
         db.commit()
         db.refresh(proposal)
+        
+        # Broadcast proposal submission via WebSocket
+        try:
+            await global_ws_manager.broadcast({
+                "type": "proposal_submitted",
+                "proposal": {
+                    "id": proposal.id,
+                    "project_id": proposal.project_id,
+                    "title": proposal.title,
+                    "status": proposal.status,
+                    "submitted_at": proposal.submitted_at.isoformat() if proposal.submitted_at else None,
+                    "submitter_id": current_user.id
+                }
+            }, subscription_type="proposals")
+        except Exception as e:
+            print(f"Error broadcasting proposal submission: {e}")
+        
         return proposal
     except HTTPException:
         raise
@@ -866,11 +884,11 @@ async def review_proposal(
                 detail=f"Invalid action. Allowed actions: {', '.join(ALLOWED_ACTIONS)}"
             )
         
-        # Check if proposal is in a reviewable state
-        if proposal.status != "pending_approval":
+        # Check if proposal is in a reviewable state (can review pending_approval or on_hold proposals)
+        if proposal.status not in ["pending_approval", "on_hold"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Proposal is not pending approval. Current status: {proposal.status}"
+                detail=f"Proposal cannot be reviewed from current status: {proposal.status}. Only pending_approval or on_hold proposals can be reviewed."
             )
         
         # Update status
@@ -899,6 +917,36 @@ async def review_proposal(
         
         db.commit()
         db.refresh(proposal)
+        
+        # Broadcast proposal review via WebSocket
+        try:
+            await global_ws_manager.broadcast({
+                "type": "proposal_reviewed",
+                "proposal": {
+                    "id": proposal.id,
+                    "project_id": proposal.project_id,
+                    "title": proposal.title,
+                    "status": proposal.status,
+                    "reviewed_at": proposal.reviewed_at.isoformat() if proposal.reviewed_at else None,
+                    "reviewed_by": proposal.reviewed_by
+                }
+            }, subscription_type="proposals")
+            
+            # Also notify the proposal owner
+            if project:
+                await global_ws_manager.send_to_user(project.owner_id, {
+                    "type": "proposal_reviewed",
+                    "proposal": {
+                        "id": proposal.id,
+                        "title": proposal.title,
+                        "status": proposal.status,
+                        "action": request.action,
+                        "feedback": request.feedback
+                    }
+                })
+        except Exception as e:
+            print(f"Error broadcasting proposal review: {e}")
+        
         return proposal
     except HTTPException:
         raise
@@ -940,6 +988,31 @@ async def admin_dashboard(
     proposals = query.order_by(desc(Proposal.submitted_at).nullslast()).all()
     return proposals
 
+@router.get("/admin/{proposal_id}", response_model=ProposalResponse)
+async def admin_get_proposal(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a specific proposal for admin review (no ownership check)."""
+    MANAGER_ROLE = "pre_sales_manager"
+    
+    if current_user.role != MANAGER_ROLE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Manager role required."
+        )
+    
+    proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    
+    if not proposal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proposal not found"
+        )
+    
+    return proposal
+
 @router.get("/admin/analytics")
 async def admin_analytics(
     db: Session = Depends(get_db),
@@ -974,15 +1047,88 @@ async def admin_analytics(
     total_managers = db.query(func.count(User.id)).filter(User.role == MANAGER_ROLE, User.is_active == True).scalar() or 0
     
     # Recent activity (last 7 days)
-    from datetime import timedelta
+    from datetime import timedelta, date
     seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
     recent_submissions = db.query(func.count(Proposal.id)).filter(
         Proposal.submitted_at >= seven_days_ago
     ).scalar() or 0
     recent_approvals = db.query(func.count(Proposal.id)).filter(
-        Proposal.reviewed_at >= seven_days_ago,
+        Proposal.reviewed_at >= seven_days_ago
+    ).filter(
         Proposal.status == "approved"
     ).scalar() or 0
+    
+    # Time-series data for last 30 days (daily)
+    daily_submissions = []
+    daily_approvals = []
+    for i in range(30):
+        day = datetime.utcnow() - timedelta(days=30-i)
+        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        submissions_count = db.query(func.count(Proposal.id)).filter(
+            Proposal.submitted_at >= day_start
+        ).filter(
+            Proposal.submitted_at <= day_end
+        ).scalar() or 0
+        
+        approvals_count = db.query(func.count(Proposal.id)).filter(
+            Proposal.reviewed_at >= day_start
+        ).filter(
+            Proposal.reviewed_at <= day_end
+        ).filter(
+            Proposal.status == "approved"
+        ).scalar() or 0
+        
+        daily_submissions.append({
+            "date": day_start.strftime("%Y-%m-%d"),
+            "label": day_start.strftime("%b %d"),
+            "value": submissions_count
+        })
+        daily_approvals.append({
+            "date": day_start.strftime("%Y-%m-%d"),
+            "label": day_start.strftime("%b %d"),
+            "value": approvals_count
+        })
+    
+    # Weekly data (last 4 weeks)
+    weekly_data = []
+    for i in range(4):
+        week_start = datetime.utcnow() - timedelta(days=28-i*7)
+        week_end = week_start + timedelta(days=6)
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_end = week_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        weekly_submissions = db.query(func.count(Proposal.id)).filter(
+            Proposal.submitted_at >= week_start
+        ).filter(
+            Proposal.submitted_at <= week_end
+        ).scalar() or 0
+        
+        weekly_approvals = db.query(func.count(Proposal.id)).filter(
+            Proposal.reviewed_at >= week_start
+        ).filter(
+            Proposal.reviewed_at <= week_end
+        ).filter(
+            Proposal.status == "approved"
+        ).scalar() or 0
+        
+        weekly_rejections = db.query(func.count(Proposal.id)).filter(
+            Proposal.reviewed_at >= week_start
+        ).filter(
+            Proposal.reviewed_at <= week_end
+        ).filter(
+            Proposal.status == "rejected"
+        ).scalar() or 0
+        
+        weekly_data.append({
+            "week": f"Week {4-i}",
+            "label": week_start.strftime("%b %d"),
+            "submissions": weekly_submissions,
+            "approvals": weekly_approvals,
+            "rejections": weekly_rejections
+        })
     
     # Approval rate
     reviewed_proposals = approved_proposals + rejected_proposals
@@ -1019,6 +1165,11 @@ async def admin_analytics(
             "recent_submissions": recent_submissions,
             "recent_approvals": recent_approvals,
             "approval_rate": round(approval_rate, 2),
+        },
+        "time_series": {
+            "daily_submissions": daily_submissions,
+            "daily_approvals": daily_approvals,
+            "weekly": weekly_data
         }
     }
 

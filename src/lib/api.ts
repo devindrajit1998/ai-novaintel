@@ -131,6 +131,33 @@ export interface ProposalReviewRequest {
   feedback?: string;
 }
 
+export interface ChatMessage {
+  id: number;
+  conversation_id: number;
+  sender_id: number;
+  sender_name: string;
+  sender_email: string;
+  content: string;
+  is_read: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Conversation {
+  id: number;
+  name?: string;
+  is_group: boolean;
+  created_at: string;
+  updated_at: string;
+  participants: Array<{
+    id: number;
+    name: string;
+    email: string;
+  }>;
+  last_message?: ChatMessage;
+  unread_count: number;
+}
+
 class ApiClient {
   private baseURL: string;
 
@@ -708,6 +735,57 @@ class ApiClient {
 
   async getAdminAnalytics(): Promise<any> {
     return this.request<any>("/proposal/admin/analytics");
+  }
+
+  // Admin User Management
+  async getAllUsers(): Promise<User[]> {
+    return this.request<User[]>("/auth/admin/users");
+  }
+
+  async updateUser(userId: string, updates: { full_name?: string; role?: string }): Promise<User> {
+    return this.request<User>(`/auth/admin/users/${userId}`, {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async toggleUserActive(userId: string, isActive: boolean): Promise<User> {
+    return this.request<User>(`/auth/admin/users/${userId}/activate?is_active=${isActive}`, {
+      method: "PUT",
+    });
+  }
+
+  // Admin Project Management
+  async getAllProjects(): Promise<Project[]> {
+    return this.request<Project[]>("/projects/admin/all");
+  }
+
+  async getAdminProject(projectId: number): Promise<Project> {
+    return this.request<Project>(`/projects/admin/${projectId}`);
+  }
+
+  async getAdminProposal(proposalId: number): Promise<Proposal> {
+    return this.request<Proposal>(`/proposal/admin/${proposalId}`);
+  }
+
+  // Chat endpoints
+  async getConversations(): Promise<{ conversations: Conversation[]; total: number }> {
+    return this.request<{ conversations: Conversation[]; total: number }>("/chat/conversations");
+  }
+
+  async createConversation(participantIds: number[], name?: string): Promise<Conversation> {
+    return this.request<Conversation>("/chat/conversations", {
+      method: "POST",
+      body: JSON.stringify({ participant_ids: participantIds, name }),
+    });
+  }
+
+  async getMessages(conversationId: number, skip: number = 0, limit: number = 100): Promise<ChatMessage[]> {
+    return this.request<ChatMessage[]>(`/chat/conversations/${conversationId}/messages?skip=${skip}&limit=${limit}`);
+  }
+
+  async getChatUsers(): Promise<User[]> {
+    return this.request<User[]>("/chat/users");
   }
 }
 

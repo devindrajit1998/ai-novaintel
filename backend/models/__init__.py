@@ -5,6 +5,7 @@ from models.insights import Insights
 from models.proposal import Proposal
 from models.case_study import CaseStudy
 from models.notification import Notification
+from models.conversation import Conversation, ConversationParticipant, Message
 
 __all__ = [
     "User",
@@ -16,5 +17,8 @@ __all__ = [
     "Proposal",
     "CaseStudy",
     "Notification",
+    "Conversation",
+    "ConversationParticipant",
+    "Message",
 ]
 

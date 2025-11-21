@@ -6,6 +6,7 @@ from models.user import User
 from models.project import Project
 from api.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
 from utils.dependencies import get_current_user
+from utils.websocket_manager import global_ws_manager
 
 router = APIRouter()
 
@@ -48,6 +49,21 @@ async def create_project(
         db.add(new_project)
         db.commit()
         db.refresh(new_project)
+        
+        # Broadcast project creation via WebSocket
+        try:
+            from utils.websocket_manager import global_ws_manager
+            await global_ws_manager.broadcast({
+                "type": "project_created",
+                "project": {
+                    "id": new_project.id,
+                    "name": new_project.name,
+                    "owner_id": new_project.owner_id,
+                    "created_at": new_project.created_at.isoformat() if hasattr(new_project.created_at, 'isoformat') else str(new_project.created_at)
+                }
+            }, subscription_type="projects")
+        except Exception as e:
+            print(f"Error broadcasting project creation: {e}")
         
         print(f"✓ Project created: {new_project.id} - {new_project.name}")
         return new_project
@@ -124,6 +140,22 @@ async def update_project(
         
         db.commit()
         db.refresh(project)
+        
+        # Broadcast project update via WebSocket
+        try:
+            from utils.websocket_manager import global_ws_manager
+            await global_ws_manager.broadcast({
+                "type": "project_updated",
+                "project": {
+                    "id": project.id,
+                    "name": project.name,
+                    "status": project.status,
+                    "owner_id": project.owner_id,
+                    "updated_at": project.updated_at.isoformat() if hasattr(project.updated_at, 'isoformat') else str(project.updated_at)
+                }
+            }, subscription_type="projects")
+        except Exception as e:
+            print(f"Error broadcasting project update: {e}")
         
         return project
     except HTTPException:
@@ -348,4 +380,45 @@ def _update_notification(
         if metadata:
             notification.metadata_ = {**(notification.metadata_ or {}), **metadata}
         db.commit()
+
+@router.get("/admin/all", response_model=List[ProjectResponse])
+async def get_all_projects(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    skip: int = 0,
+    limit: int = 100
+):
+    """Get all projects across all users. Only accessible to managers."""
+    MANAGER_ROLE = "pre_sales_manager"
+    if current_user.role != MANAGER_ROLE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Manager role required."
+        )
+    
+    projects = db.query(Project).offset(skip).limit(limit).all()
+    return projects
+
+@router.get("/admin/{project_id}", response_model=ProjectResponse)
+async def admin_get_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a specific project for admin review (no ownership check)."""
+    if current_user.role != "pre_sales_manager":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Manager role required."
+        )
+    
+    project = db.query(Project).filter(Project.id == project_id).first()
+    
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+    
+    return project
 

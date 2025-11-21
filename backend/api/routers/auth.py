@@ -7,6 +7,7 @@ from models.user import User
 from api.schemas.auth import UserRegister, UserLogin, TokenResponse, RefreshTokenRequest, UserResponse, UserUpdate, UserSettingsUpdate, UserSettingsResponse, ForgotPasswordRequest, ResetPasswordRequest
 from utils.config import settings
 from utils.dependencies import get_current_user
+from utils.websocket_manager import global_ws_manager
 from utils.security import (
     verify_password,
     get_password_hash,
@@ -155,10 +156,20 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
             user.is_active = True
             db.commit()
         
-        # Create tokens
+        # Create tokens (include role for frontend access)
         try:
-            access_token = create_access_token(data={"sub": user.email, "email": user.email, "user_id": user.id})
-            refresh_token = create_refresh_token(data={"sub": user.email, "email": user.email, "user_id": user.id})
+            access_token = create_access_token(data={
+                "sub": user.email, 
+                "email": user.email, 
+                "user_id": user.id,
+                "role": user.role or "pre_sales_analyst"
+            })
+            refresh_token = create_refresh_token(data={
+                "sub": user.email, 
+                "email": user.email, 
+                "user_id": user.id,
+                "role": user.role or "pre_sales_analyst"
+            })
         except Exception as e:
             print(f"❌ Token creation error: {type(e).__name__}: {str(e)}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
@@ -205,9 +216,19 @@ async def refresh_token(token_data: RefreshTokenRequest, db: Session = Depends(g
             detail="Invalid refresh token"
         )
     
-    # Create new tokens
-    access_token = create_access_token(data={"sub": user.email, "email": user.email, "user_id": user.id})
-    refresh_token = create_refresh_token(data={"sub": user.email, "email": user.email, "user_id": user.id})
+    # Create new tokens (include role)
+    access_token = create_access_token(data={
+        "sub": user.email, 
+        "email": user.email, 
+        "user_id": user.id,
+        "role": user.role or "pre_sales_analyst"
+    })
+    refresh_token = create_refresh_token(data={
+        "sub": user.email, 
+        "email": user.email, 
+        "user_id": user.id,
+        "role": user.role or "pre_sales_analyst"
+    })
     
     return {
         "access_token": access_token,
@@ -416,3 +437,137 @@ async def reset_password(
     db.commit()
     
     return {"message": "Password reset successfully"}
+
+# Admin endpoints
+@router.get("/admin/users", response_model=List[UserResponse])
+async def get_all_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get list of all users. Only accessible to managers."""
+    MANAGER_ROLE = "pre_sales_manager"
+    if current_user.role != MANAGER_ROLE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Manager role required."
+        )
+    
+    users = db.query(User).all()
+    
+    return [
+        {
+            "id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "is_active": user.is_active,
+            "email_verified": user.email_verified,
+            "role": user.role or "pre_sales_analyst"
+        }
+        for user in users
+    ]
+
+@router.put("/admin/users/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: int,
+    user_update: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update user (role, active status). Only accessible to managers."""
+    MANAGER_ROLE = "pre_sales_manager"
+    if current_user.role != MANAGER_ROLE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Manager role required."
+        )
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if user_update.full_name is not None:
+        user.full_name = user_update.full_name
+    if user_update.role is not None:
+        user.role = user_update.role
+    
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+    
+    # Broadcast user update via WebSocket
+    try:
+        await global_ws_manager.broadcast({
+            "type": "user_updated",
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "role": user.role or "pre_sales_analyst",
+                "is_active": user.is_active
+            }
+        }, subscription_type="users")
+    except Exception as e:
+        print(f"Error broadcasting user update: {e}")
+    
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "is_active": user.is_active,
+        "email_verified": user.email_verified,
+        "role": user.role or "pre_sales_analyst"
+    }
+
+@router.put("/admin/users/{user_id}/activate", response_model=UserResponse)
+async def toggle_user_active(
+    user_id: int,
+    is_active: bool,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Activate or deactivate a user. Only accessible to managers."""
+    MANAGER_ROLE = "pre_sales_manager"
+    if current_user.role != MANAGER_ROLE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Manager role required."
+        )
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    user.is_active = is_active
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+    
+    # Broadcast user status change via WebSocket
+    try:
+        await global_ws_manager.broadcast({
+            "type": "user_status_changed",
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "is_active": user.is_active,
+                "role": user.role or "pre_sales_analyst"
+            }
+        }, subscription_type="users")
+    except Exception as e:
+        print(f"Error broadcasting user status change: {e}")
+    
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "is_active": user.is_active,
+        "email_verified": user.email_verified,
+        "role": user.role or "pre_sales_analyst"
+    }

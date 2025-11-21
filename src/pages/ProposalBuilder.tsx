@@ -278,11 +278,11 @@ export default function ProposalBuilder() {
     setSections(newSections);
   };
 
-  // Load managers for dropdown (always load for analysts)
+  // Load managers for dropdown (available to all users)
   const { data: managers = [], isLoading: isLoadingManagers, error: managersError } = useQuery({
     queryKey: ["managers"],
     queryFn: () => apiClient.getManagers(),
-    enabled: user?.role === "pre_sales_analyst",
+    enabled: !!user, // Load for all authenticated users
     retry: 1,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
@@ -869,62 +869,66 @@ export default function ProposalBuilder() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              {user?.role === "pre_sales_analyst" && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Select Manager for Approval</label>
-                  {isLoadingManagers ? (
-                    <div className="flex items-center gap-2 p-3 border rounded-md">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Loading managers...</span>
-                    </div>
-                  ) : managersError ? (
-                    <div className="p-3 border rounded-md bg-destructive/10">
-                      <p className="text-sm text-destructive">
-                        Failed to load managers. The proposal will be sent to all managers by default.
-                      </p>
-                    </div>
-                  ) : managers.length === 0 ? (
-                    <div className="p-3 border rounded-md bg-muted/50">
-                      <p className="text-sm text-muted-foreground">
-                        No managers available. The proposal will be sent to all managers by default.
-                      </p>
-                    </div>
-                  ) : (
-                    <Select
-                      value={selectedManagerId?.toString() || ""}
-                      onValueChange={(value) => setSelectedManagerId(value ? parseInt(value) : undefined)}
-                    >
-                      <SelectTrigger className="bg-background/50">
-                        <SelectValue placeholder="Select a manager (optional - sends to all if not selected)">
-                          {selectedManagerId
-                            ? (() => {
-                                const selected = managers.find((m) => m.id.toString() === selectedManagerId.toString());
-                                return selected ? `${selected.full_name} • ${selected.email}` : "Select a manager";
-                              })()
-                            : "All Managers (Default)"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">All Managers (Default)</SelectItem>
-                        {managers.map((manager) => (
-                          <SelectItem key={manager.id} value={manager.id.toString()}>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{manager.full_name}</span>
-                              <span className="text-muted-foreground">•</span>
-                              <span className="text-sm text-muted-foreground">{manager.email}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {managers.length > 0 
-                      ? "Select a specific manager or leave as 'All Managers' to notify everyone"
-                      : "If no managers are available, the proposal will be sent to all managers when they are added"}
-                  </p>
-                </div>
-              )}
+              <div>
+                <label className="text-sm font-medium mb-2 block">Select Manager for Approval</label>
+                {isLoadingManagers ? (
+                  <div className="flex items-center gap-2 p-3 border rounded-md">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Loading managers...</span>
+                  </div>
+                ) : managersError ? (
+                  <div className="p-3 border rounded-md bg-destructive/10">
+                    <p className="text-sm text-destructive">
+                      Failed to load managers. The proposal will be sent to all managers by default.
+                    </p>
+                  </div>
+                ) : managers.length === 0 ? (
+                  <div className="p-3 border rounded-md bg-muted/50">
+                    <p className="text-sm text-muted-foreground">
+                      No managers available. The proposal will be sent to all managers by default.
+                    </p>
+                  </div>
+                ) : (
+                  <Select
+                    value={selectedManagerId ? selectedManagerId.toString() : "all"}
+                    onValueChange={(value) => {
+                      if (value === "all") {
+                        setSelectedManagerId(undefined);
+                      } else {
+                        setSelectedManagerId(parseInt(value));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-background/50">
+                      <SelectValue placeholder="Select a manager (optional - sends to all if not selected)">
+                        {selectedManagerId
+                          ? (() => {
+                              const selected = managers.find((m) => m.id === selectedManagerId.toString());
+                              return selected ? `${selected.full_name} • ${selected.email}` : "Select a manager";
+                            })()
+                          : "All Managers (Default)"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Managers (Default)</SelectItem>
+                      {managers.map((manager) => (
+                        <SelectItem key={manager.id} value={manager.id.toString()}>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{manager.full_name}</span>
+                            <span className="text-muted-foreground">•</span>
+                            <span className="text-sm text-muted-foreground">{manager.email}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {managers.length > 0 
+                    ? "Select a specific manager or leave as 'All Managers' to notify everyone"
+                    : "If no managers are available, the proposal will be sent to all managers when they are added"}
+                </p>
+              </div>
               <div>
                 <label className="text-sm font-medium mb-2 block">Message (Optional)</label>
                 <Textarea

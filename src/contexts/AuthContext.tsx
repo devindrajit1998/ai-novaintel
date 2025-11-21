@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { apiClient, User } from '@/lib/api';
+import { systemWebSocket } from '@/lib/systemWebSocket';
 
 interface AuthContextType {
   user: User | null;
@@ -26,6 +27,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // First, try to fetch full user profile from API (most reliable)
+    try {
+      const fullUser = await apiClient.getCurrentUser();
+      setUser(fullUser);
+      localStorage.setItem('user_data', JSON.stringify(fullUser));
+      setIsLoading(false);
+      return;
+    } catch (apiError) {
+      // API call failed, fall back to token decoding
+      console.warn('Failed to fetch user profile, falling back to token decode:', apiError);
+    }
+
     // Try to decode token to get user info
     try {
       // Check if token is a valid JWT (has 3 parts separated by dots)
@@ -50,18 +63,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.setItem('access_token', refreshed.access_token);
             localStorage.setItem('refresh_token', refreshed.refresh_token);
             
-            // Decode new token
-            const newTokenParts = refreshed.access_token.split('.');
-            if (newTokenParts.length === 3) {
-              const newPayload = JSON.parse(atob(newTokenParts[1]));
-              if (newPayload.email) {
-                const userData = {
-                  id: newPayload.sub || newPayload.user_id || newPayload.id || '1',
-                  email: newPayload.email,
-                  full_name: newPayload.full_name || newPayload.name || newPayload.email.split('@')[0],
-                };
-                setUser(userData);
-                localStorage.setItem('user_data', JSON.stringify(userData));
+            // Try to fetch full profile with new token
+            try {
+              const fullUser = await apiClient.getCurrentUser();
+              setUser(fullUser);
+              localStorage.setItem('user_data', JSON.stringify(fullUser));
+              setIsLoading(false);
+              return;
+            } catch (e) {
+              // Fall back to token decode
+              const newTokenParts = refreshed.access_token.split('.');
+              if (newTokenParts.length === 3) {
+                const newPayload = JSON.parse(atob(newTokenParts[1]));
+                if (newPayload.email) {
+                  const userData = {
+                    id: newPayload.sub || newPayload.user_id || newPayload.id || '1',
+                    email: newPayload.email,
+                    full_name: newPayload.full_name || newPayload.name || newPayload.email.split('@')[0],
+                    role: newPayload.role || 'pre_sales_analyst',
+                  };
+                  setUser(userData);
+                  localStorage.setItem('user_data', JSON.stringify(userData));
+                }
               }
             }
           } catch (error) {
@@ -81,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: payload.sub || payload.user_id || payload.id || '1',
             email: payload.email,
             full_name: payload.full_name || payload.name || payload.email.split('@')[0],
+            role: payload.role || 'pre_sales_analyst',
           };
           setUser(userData);
           localStorage.setItem('user_data', JSON.stringify(userData));
@@ -141,15 +165,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const userData = JSON.parse(storedUserData);
           setUser(userData);
-          // User is restored immediately, but we still verify token
+          // User is restored immediately, but we still verify token and fetch fresh data
         } catch (e) {
           // Invalid stored data, clear it
           localStorage.removeItem('user_data');
         }
       }
       
-      // Then verify token and update user if needed
-      await restoreUserFromToken();
+      // Then verify token and fetch fresh user profile (including role)
+      // This ensures role is always up-to-date
+      try {
+        const fullUser = await apiClient.getCurrentUser();
+        setUser(fullUser);
+        localStorage.setItem('user_data', JSON.stringify(fullUser));
+        
+        // Connect to system WebSocket for real-time updates
+        if (fullUser.id) {
+          const userId = parseInt(fullUser.id);
+          systemWebSocket.connect(userId).catch((error) => {
+            console.error("Failed to connect system WebSocket:", error);
+          });
+        }
+        
+        setIsLoading(false);
+      } catch (error) {
+        // If API call fails, fall back to token restoration
+        await restoreUserFromToken();
+      }
     };
     
     restoreSession();
@@ -175,35 +217,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await apiClient.login({ email, password });
       // Tokens are stored by apiClient in localStorage
-      // Decode token to get user info
+      
+      // Fetch full user profile to get role and other details
       try {
-        const token = response.access_token;
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        const userData = {
-          id: payload.sub || payload.user_id || payload.id || '1',
-          email: payload.email || email,
-          full_name: payload.full_name || payload.name || email.split('@')[0],
-        };
+        const fullUser = await apiClient.getCurrentUser();
+        // Update state and localStorage with complete user data
+        setUser(fullUser);
+        localStorage.setItem('user_data', JSON.stringify(fullUser));
         
-        // Update state and localStorage synchronously before returning
-        setUser(userData);
-        localStorage.setItem('user_data', JSON.stringify(userData));
+        // Connect to system WebSocket for real-time updates
+        if (fullUser.id) {
+          const userId = parseInt(fullUser.id);
+          systemWebSocket.connect(userId).catch((error) => {
+            console.error("Failed to connect system WebSocket:", error);
+          });
+        }
         
-        // Ensure loading state is false after login
         setIsLoading(false);
-        
-        return userData;
-      } catch (e) {
-        // If decode fails, use email-based fallback
-        const userData = {
-          id: '1',
-          email,
-          full_name: email.split('@')[0],
-        };
-        setUser(userData);
-        localStorage.setItem('user_data', JSON.stringify(userData));
-        setIsLoading(false);
-        return userData;
+        return fullUser;
+      } catch (profileError) {
+        // If fetching profile fails, decode token to get basic info
+        try {
+          const token = response.access_token;
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const userData = {
+            id: payload.sub || payload.user_id || payload.id || '1',
+            email: payload.email || email,
+            full_name: payload.full_name || payload.name || email.split('@')[0],
+            role: payload.role || 'pre_sales_analyst',
+          };
+          
+          // Update state and localStorage synchronously before returning
+          setUser(userData);
+          localStorage.setItem('user_data', JSON.stringify(userData));
+          
+          // Connect to system WebSocket for real-time updates
+          if (userData.id) {
+            const userId = parseInt(userData.id);
+            systemWebSocket.connect(userId).catch((error) => {
+              console.error("Failed to connect system WebSocket:", error);
+            });
+          }
+          
+          setIsLoading(false);
+          return userData;
+        } catch (e) {
+          // If decode fails, use email-based fallback
+          const userData = {
+            id: '1',
+            email,
+            full_name: email.split('@')[0],
+            role: 'pre_sales_analyst',
+          };
+          setUser(userData);
+          localStorage.setItem('user_data', JSON.stringify(userData));
+          setIsLoading(false);
+          return userData;
+        }
       }
     } catch (error) {
       setIsLoading(false);
@@ -224,6 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     apiClient.logout();
+    systemWebSocket.disconnect();
     setUser(null);
     localStorage.removeItem('user_data');
   };

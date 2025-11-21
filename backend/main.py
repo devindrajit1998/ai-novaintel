@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore", message=".*langchain.*", category=DeprecationW
 from api.routers import (
     auth, projects, upload, insights, proposal,
     case_studies, rag, agents, case_study_documents,
-    search, notifications
+    search, notifications, chat, websocket
 )
 from db.database import engine, Base
 from utils.config import settings
@@ -24,7 +24,8 @@ from utils.config import settings
 # Import models so SQLAlchemy registers them
 from models import (
     User, Project, RFPDocument, Insights,
-    Proposal, CaseStudy, Notification
+    Proposal, CaseStudy, Notification,
+    Conversation, ConversationParticipant, Message
 )
 
 try:
@@ -42,24 +43,56 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 # Lifespan events: database init + services init
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Database initialization with timeout protection
+    import asyncio
+    
+    def create_tables():
+        """Synchronous database initialization."""
+        try:
+            from sqlalchemy import text
+            # Quick connection test
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            Base.metadata.create_all(bind=engine)
+            print("[OK] Database tables created/verified")
+            
+            # Run migrations
+            from db.migrate_user_settings import migrate_user_settings
+            from db.migrate_notifications import migrate_notifications
+            from db.migrate_case_studies import migrate_case_studies
+            from db.migrate_proposals_table import migrate_proposals_table
+            try:
+                from db.migrate_chat_tables import migrate_chat_tables
+                migrate_chat_tables()
+            except Exception as e:
+                print(f"[WARNING] Chat tables migration check failed: {e}")
+
+            migrate_user_settings()
+            migrate_notifications()
+            migrate_case_studies()
+            migrate_proposals_table()
+        except Exception as e:
+            print(f"[WARNING] Database initialization failed: {e}")
+            print("[INFO] Server will continue - database operations may fail until connection is available")
+    
+    # Run database init in executor with timeout
+    loop = asyncio.get_running_loop()
     try:
-        Base.metadata.create_all(bind=engine)
-        print("[OK] Database tables created/verified")
-
-        from db.migrate_user_settings import migrate_user_settings
-        from db.migrate_notifications import migrate_notifications
-        from db.migrate_case_studies import migrate_case_studies
-        from db.migrate_proposals_table import migrate_proposals_table
-
-        migrate_user_settings()
-        migrate_notifications()
-        migrate_case_studies()
-        migrate_proposals_table()
-
+        await asyncio.wait_for(
+            loop.run_in_executor(None, create_tables),
+            timeout=15.0
+        )
+    except asyncio.TimeoutError:
+        print("[WARNING] Database initialization timed out after 15 seconds")
+        print("[INFO] Server will continue - check database connection and DATABASE_URL in .env")
+    except asyncio.CancelledError:
+        # If cancelled during startup, re-raise to allow proper cleanup
+        print("[INFO] Startup cancelled by user")
+        raise
     except Exception as e:
-        print(f"[WARNING] Database initialization warning: {e}")
+        print(f"[WARNING] Database initialization error: {e}")
 
-    # Service check logs
+    # Service check logs - run quickly, don't block
     try:
         from utils.gemini_service import gemini_service
         if gemini_service.is_available():
@@ -85,7 +118,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[WARNING] RAG services failed: {e}")
 
-    yield
+    print("[INFO] Startup complete - server ready to accept requests")
+    
+    # Startup complete, yield control
+    try:
+        yield
+    except asyncio.CancelledError:
+        # Re-raise cancellation to allow proper cleanup
+        raise
+    finally:
+        # Shutdown cleanup - handle cancellation gracefully
+        try:
+            print("[INFO] Shutting down...")
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            # Suppress cancellation errors during shutdown
+            pass
 
 
 app = FastAPI(
@@ -175,6 +222,8 @@ app.include_router(agents.router, prefix="/agents", tags=["Multi-Agent Workflow"
 app.include_router(case_study_documents.router, prefix="/case-study-documents", tags=["Case Study Documents"])
 app.include_router(search.router, tags=["Search"])
 app.include_router(notifications.router, tags=["Notifications"])
+app.include_router(chat.router, tags=["Chat"])
+app.include_router(websocket.router, tags=["WebSocket"])
 
 
 @app.get("/")

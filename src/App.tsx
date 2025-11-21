@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PublicRoute } from "@/components/PublicRoute";
+import { AnalystOnlyRoute } from "@/components/AnalystOnlyRoute";
+import { SystemWebSocketProvider } from "@/components/SystemWebSocketProvider";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -18,7 +20,14 @@ import Insights from "./pages/Insights";
 import ProposalBuilder from "./pages/ProposalBuilder";
 import CaseStudies from "./pages/CaseStudies";
 import Settings from "./pages/Settings";
+import Chat from "./pages/Chat";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminProposals from "./pages/admin/AdminProposals";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminProjects from "./pages/admin/AdminProjects";
+import AdminAnalytics from "./pages/admin/AdminAnalytics";
+import AdminCaseStudies from "./pages/admin/AdminCaseStudies";
+import AdminChat from "./pages/admin/AdminChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -35,9 +44,10 @@ const App = () => (
     <TooltipProvider>
       <BrowserRouter>
         <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <Routes>
+          <SystemWebSocketProvider>
+            <Toaster />
+            <Sonner />
+            <Routes>
             <Route path="/" element={<Landing />} />
             <Route
               path="/login"
@@ -61,17 +71,17 @@ const App = () => (
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute>
+                <AnalystOnlyRoute>
                   <Dashboard />
-                </ProtectedRoute>
+                </AnalystOnlyRoute>
               }
             />
             <Route
               path="/new-project"
               element={
-                <ProtectedRoute>
+                <AnalystOnlyRoute>
                   <NewProject />
-                </ProtectedRoute>
+                </AnalystOnlyRoute>
               }
             />
             <Route
@@ -93,9 +103,9 @@ const App = () => (
             <Route
               path="/case-studies"
               element={
-                <ProtectedRoute>
+                <AnalystOnlyRoute>
                   <CaseStudies />
-                </ProtectedRoute>
+                </AnalystOnlyRoute>
               }
             />
             <Route
@@ -107,6 +117,14 @@ const App = () => (
               }
             />
             <Route
+              path="/chat"
+              element={
+                <ProtectedRoute>
+                  <Chat />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin"
               element={
                 <ProtectedRoute>
@@ -114,9 +132,58 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin/proposals"
+              element={
+                <ProtectedRoute>
+                  <AdminProposals />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute>
+                  <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/projects"
+              element={
+                <ProtectedRoute>
+                  <AdminProjects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/analytics"
+              element={
+                <ProtectedRoute>
+                  <AdminAnalytics />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/case-studies"
+              element={
+                <ProtectedRoute>
+                  <AdminCaseStudies />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/chat"
+              element={
+                <ProtectedRoute>
+                  <AdminChat />
+                </ProtectedRoute>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </SystemWebSocketProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
