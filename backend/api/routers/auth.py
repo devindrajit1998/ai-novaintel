@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
+import sys
 from db.database import get_db
 from models.user import User
 from api.schemas.auth import UserRegister, UserLogin, TokenResponse, RefreshTokenRequest, UserResponse, UserUpdate, UserSettingsUpdate, UserSettingsResponse, ForgotPasswordRequest, ResetPasswordRequest
@@ -71,8 +72,10 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
         # Send verification email
         try:
             await send_verification_email(user_data.email, verification_token)
+            print(f"[REGISTRATION] Verification email sent successfully to: {user_data.email}", file=sys.stderr, flush=True)
         except Exception as e:
-            print(f"Failed to send verification email: {e}")
+            # Error already logged in email_service with full details
+            print(f"[REGISTRATION WARNING] User registered but verification email failed. User ID: {new_user.id}, Email: {user_data.email}", file=sys.stderr, flush=True)
             # Continue anyway - user can request resend
         
         return {
@@ -239,33 +242,67 @@ async def refresh_token(token_data: RefreshTokenRequest, db: Session = Depends(g
 @router.get("/verify-email/{token}")
 async def verify_email(token: str, db: Session = Depends(get_db)):
     """Verify user email using verification token."""
-    email = verify_email_token(token)
+    import sys
     
-    if not email:
+    print(f"\n{'='*60}", file=sys.stderr, flush=True)
+    print(f"[EMAIL VERIFICATION] Request received", file=sys.stderr, flush=True)
+    print(f"Token (first 20 chars): {token[:20]}...", file=sys.stderr, flush=True)
+    
+    try:
+        email = verify_email_token(token)
+        
+        if not email:
+            print(f"[EMAIL VERIFICATION] Token validation failed: Invalid or expired token", file=sys.stderr, flush=True)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification token"
+            )
+        
+        print(f"[EMAIL VERIFICATION] Token validated. Email: {email}", file=sys.stderr, flush=True)
+        
+        user = db.query(User).filter(User.email == email).first()
+        
+        if not user:
+            print(f"[EMAIL VERIFICATION] User not found for email: {email}", file=sys.stderr, flush=True)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        print(f"[EMAIL VERIFICATION] User found: ID={user.id}, Email={user.email}, Already verified={user.email_verified}", file=sys.stderr, flush=True)
+        
+        if user.email_verified:
+            print(f"[EMAIL VERIFICATION] Email already verified for: {email}", file=sys.stderr, flush=True)
+            print(f"{'='*60}\n", file=sys.stderr, flush=True)
+            return {"message": "Email already verified"}
+        
+        # Verify email
+        user.email_verified = True
+        user.is_active = True
+        user.email_verified_at = datetime.utcnow()
+        user.email_verification_token = None
+        db.commit()
+        db.refresh(user)
+        
+        print(f"[EMAIL VERIFICATION] SUCCESS - Email verified for: {email}", file=sys.stderr, flush=True)
+        print(f"  User ID: {user.id}", file=sys.stderr, flush=True)
+        print(f"  Email verified: {user.email_verified}", file=sys.stderr, flush=True)
+        print(f"  User active: {user.is_active}", file=sys.stderr, flush=True)
+        print(f"  Verified at: {user.email_verified_at}", file=sys.stderr, flush=True)
+        print(f"{'='*60}\n", file=sys.stderr, flush=True)
+        
+        return {"message": "Email verified successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"[EMAIL VERIFICATION] ERROR: {type(e).__name__}: {str(e)}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        print(f"{'='*60}\n", file=sys.stderr, flush=True)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired verification token"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Email verification failed: {str(e)}"
         )
-    
-    user = db.query(User).filter(User.email == email).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    if user.email_verified:
-        return {"message": "Email already verified"}
-    
-    # Verify email
-    user.email_verified = True
-    user.is_active = True
-    user.email_verified_at = datetime.utcnow()
-    user.email_verification_token = None
-    db.commit()
-    
-    return {"message": "Email verified successfully"}
 
 @router.get("/managers", response_model=List[UserResponse])
 async def get_managers(
@@ -343,7 +380,9 @@ async def get_user_settings(
         "ai_response_style": current_user.ai_response_style or "balanced",
         "secure_mode": current_user.secure_mode if current_user.secure_mode is not None else False,
         "auto_save_insights": current_user.auto_save_insights if current_user.auto_save_insights is not None else True,
-        "theme_preference": current_user.theme_preference or "light"
+        "theme_preference": current_user.theme_preference or "light",
+        "company_name": current_user.company_name,
+        "company_logo": current_user.company_logo
     }
 
 @router.put("/me/settings", response_model=UserSettingsResponse)
@@ -367,7 +406,9 @@ async def update_user_settings(
         "ai_response_style": current_user.ai_response_style or "balanced",
         "secure_mode": current_user.secure_mode if current_user.secure_mode is not None else False,
         "auto_save_insights": current_user.auto_save_insights if current_user.auto_save_insights is not None else True,
-        "theme_preference": current_user.theme_preference or "light"
+        "theme_preference": current_user.theme_preference or "light",
+        "company_name": current_user.company_name,
+        "company_logo": current_user.company_logo
     }
 
 @router.post("/forgot-password")
@@ -394,8 +435,10 @@ async def forgot_password(
     try:
         from utils.email_service import send_password_reset_email
         await send_password_reset_email(user.email, reset_token)
+        print(f"[PASSWORD RESET] Password reset email sent successfully to: {user.email}", file=sys.stderr, flush=True)
     except Exception as e:
-        print(f"Failed to send password reset email: {e}")
+        # Error already logged in email_service with full details
+        print(f"[PASSWORD RESET WARNING] Password reset token created but email failed. Email: {user.email}", file=sys.stderr, flush=True)
     
     return {"message": "If the email exists, a password reset link has been sent"}
 

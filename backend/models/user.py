@@ -21,6 +21,9 @@ class User(Base):
     secure_mode = Column(Boolean, default=False)  # PII sanitization enabled
     auto_save_insights = Column(Boolean, default=True)  # Auto-save AI insights
     theme_preference = Column(String, default="light")  # light, dark, system
+    # Company Information
+    company_name = Column(String, nullable=True)  # Company name for proposals
+    company_logo = Column(String, nullable=True)  # URL or path to company logo
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

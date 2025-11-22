@@ -447,15 +447,6 @@ export default function ProposalBuilder() {
                 <Eye className="mr-2 h-4 w-4" />
                 {previewMode ? "Edit" : "Preview"}
               </Button>
-              {proposal?.id && proposal?.status !== "pending_approval" && proposal?.status !== "approved" && user?.role !== "pre_sales_manager" && (
-                <Button 
-                  onClick={() => setSubmitDialogOpen(true)}
-                  className="bg-gradient-to-r from-primary to-primary/80"
-                >
-                  <Send className="mr-2 h-4 w-4" />
-                  Submit for Approval
-                </Button>
-              )}
               <Select value={templateType} onValueChange={setTemplateType}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue />
@@ -526,18 +517,6 @@ export default function ProposalBuilder() {
                     )}
                   </Button>
                 )}
-                <Button
-                  onClick={() => handleGenerate(false)}
-                  disabled={isGenerating}
-                  variant="outline"
-                >
-                  {isGenerating ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="mr-2 h-4 w-4" />
-                  )}
-                  Generate Template
-                </Button>
               </div>
             </div>
           </Card>
@@ -832,6 +811,59 @@ export default function ProposalBuilder() {
                   <Download className="mr-2 h-4 w-4 opacity-50" />
                   Export as PPTX (Coming Soon)
                 </Button>
+              </div>
+            </Card>
+
+            {/* Approval & Case Study Actions */}
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+              <h3 className="mb-4 font-heading text-lg font-semibold">Actions</h3>
+              <div className="space-y-3">
+                {proposal?.id && proposal?.status !== "pending_approval" && proposal?.status !== "approved" && user?.role !== "pre_sales_manager" && (
+                  <Button 
+                    onClick={() => setSubmitDialogOpen(true)}
+                    className="w-full bg-gradient-to-r from-primary to-primary/80"
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    Submit for Approval
+                  </Button>
+                )}
+                {proposal?.status === "approved" && (
+                  <Button 
+                    onClick={async () => {
+                      try {
+                        await apiClient.publishProjectAsCaseStudy(projectId);
+                        toast.success("Publishing project as case study... You'll receive a notification when complete.");
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to publish case study");
+                      }
+                    }}
+                    variant="outline"
+                    className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white border-0"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Publish as Case Study
+                  </Button>
+                )}
+                {proposal?.status === "pending_approval" && (
+                  <div className="text-sm text-muted-foreground text-center py-2">
+                    Proposal is pending approval
+                  </div>
+                )}
+                {proposal?.status === "rejected" && (
+                  <div className="text-sm text-muted-foreground text-center py-2">
+                    Proposal was rejected
+                  </div>
+                )}
+                {proposal?.status === "on_hold" && (
+                  <div className="text-sm text-muted-foreground text-center py-2">
+                    Proposal is on hold
+                  </div>
+                )}
+                {!proposal?.id && (
+                  <div className="text-sm text-muted-foreground text-center py-2">
+                    Save the proposal to submit for approval
+                  </div>
+                )}
               </div>
             </Card>
 

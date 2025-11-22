@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "gemini"  # "gemini" or "openai"
     GEMINI_MODEL: str = "gemini-2.0-flash"
     
+    # Embedding Model
+    EMBEDDING_MODEL: str = "sentence-transformers/all-mpnet-base-v2"  # Better quality, 768d
+    
     # Legacy OpenAI (optional fallback)
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
@@ -94,6 +97,15 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE: int = 1800         # recycle connections every 30 min
     DB_USE_NULLPOOL: bool = False       # set true to delegate pooling to PgBouncer
     DB_CONNECT_TIMEOUT: int = 5         # seconds for TCP connect timeout
+    
+    # Redis Cache Configuration
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = ""
+    REDIS_DB: int = 0
+    REDIS_ENABLED: bool = True  # Set to False to disable caching
+    CACHE_TTL: int = 3600  # Default TTL in seconds (1 hour)
+    EMBEDDING_CACHE_TTL: int = 86400  # Embedding cache TTL (24 hours)
     
     @property
     def cors_origins_list(self) -> List[str]:

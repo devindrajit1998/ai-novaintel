@@ -4,14 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { FileText, MessageSquare, Send, Sparkles, CheckCircle2, Loader2, Plus, Eye, Check } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { FileText, MessageSquare, Send, Sparkles, CheckCircle2, Loader2, Eye } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
@@ -62,6 +59,16 @@ export default function Insights() {
     retry: false,
     throwOnError: false, // Don't throw errors since 404 is expected
     refetchInterval: (query) => {
+      // Stop polling if there's an error (not 404) - prevents infinite loop on 500 errors
+      if (query.state.error) {
+        const errorMessage = query.state.error?.message || '';
+        // Only stop if it's not a 404 error
+        if (!errorMessage.includes('404')) {
+          console.error('Stopping polling due to error:', errorMessage);
+          return false;
+        }
+      }
+      
       // Poll every 3 seconds if insights don't exist yet
       const data = query.state.data;
       if (!data || !data.executive_summary) {
@@ -135,31 +142,9 @@ export default function Insights() {
     }
   };
 
-  // Add state for adding case study
-  const [showAddCaseStudy, setShowAddCaseStudy] = useState(false);
-  const [newCaseStudy, setNewCaseStudy] = useState({
-    title: "",
-    industry: "",
-    impact: "",
-    description: ""
-  });
   const [selectedCaseStudyIds, setSelectedCaseStudyIds] = useState<Set<number>>(new Set());
   const [viewingCaseStudy, setViewingCaseStudy] = useState<any | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-
-  // Add mutation for creating case study
-  const createCaseStudyMutation = useMutation({
-    mutationFn: (data: any) => apiClient.createCaseStudy(data),
-    onSuccess: () => {
-      toast.success("Case study added successfully!");
-      setShowAddCaseStudy(false);
-      setNewCaseStudy({ title: "", industry: "", impact: "", description: "" });
-      // Optionally refresh insights
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Failed to add case study");
-    }
-  });
 
   if (!projectId) {
     return (
@@ -170,6 +155,42 @@ export default function Insights() {
             <Button onClick={() => navigate("/dashboard")} className="mt-4">
               Go to Dashboard
             </Button>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show error if there's a non-404 error
+  if (error && !error.message?.includes('404')) {
+    return (
+      <DashboardLayout>
+        <div className="flex h-full items-center justify-center p-6">
+          <Card className="border-border/40 bg-gradient-card p-8 backdrop-blur-sm w-full max-w-2xl">
+            <div className="flex flex-col items-center justify-center space-y-6">
+              <div className="text-center space-y-4">
+                <h2 className="font-heading text-2xl font-bold text-destructive">Error Loading Insights</h2>
+                <p className="text-muted-foreground">
+                  {error.message || "An error occurred while loading insights"}
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <Button 
+                    variant="outline" 
+                    onClick={async () => {
+                      await refetch();
+                    }}
+                  >
+                    Retry
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => navigate("/dashboard")}
+                  >
+                    Go to Dashboard
+                  </Button>
+                </div>
+              </div>
+            </div>
           </Card>
         </div>
       </DashboardLayout>
@@ -200,7 +221,7 @@ export default function Insights() {
               </div>
 
               {/* Progress Steps */}
-              <div className="w-full space-y-4">
+              <div className="w-full space-y-0">
                 {analysisSteps.map((step, index) => {
                   // Determine step status from workflow status
                   let isActive = false;
@@ -227,13 +248,26 @@ export default function Insights() {
                     isActive = index === 0;
                   }
                   
+                  const isLast = index === analysisSteps.length - 1;
+                  
                   return (
-                    <AnalysisStep 
-                      key={step.id}
-                      label={step.label} 
-                      isActive={isActive}
-                      isComplete={isComplete}
-                    />
+                    <div key={step.id} className="relative">
+                      <AnalysisStep 
+                        label={step.label} 
+                        isActive={isActive}
+                        isComplete={isComplete}
+                      />
+                      {/* Connecting line between steps */}
+                      {!isLast && (
+                        <div className="absolute left-4 top-10 h-8 w-0.5">
+                          {isComplete ? (
+                            <div className="h-full w-full bg-green-500" />
+                          ) : (
+                            <div className="h-full w-full bg-muted-foreground/20" />
+                          )}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -343,20 +377,6 @@ export default function Insights() {
             <p className="text-muted-foreground">Project ID: {projectId}</p>
           </div>
           <div className="flex gap-3">
-            <Button 
-              variant="outline"
-              onClick={async () => {
-                try {
-                  await apiClient.publishProjectAsCaseStudy(projectId);
-                  toast.success("Publishing project as case study... You'll receive a notification when complete.");
-                } catch (error: any) {
-                  toast.error(error.message || "Failed to publish case study");
-                }
-              }}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              Publish as Case Study
-            </Button>
             <Button 
               className="bg-gradient-primary" 
               onClick={() => {
@@ -574,68 +594,6 @@ export default function Insights() {
               <TabsContent value="cases" className="mt-6">
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="font-heading text-xl font-semibold">Case Studies</h2>
-                  {/* <Dialog open={showAddCaseStudy} onOpenChange={setShowAddCaseStudy}>
-                    <DialogTrigger asChild>
-                      <Button size="sm">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Case Study
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Add New Case Study</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label>Title</Label>
-                          <Input
-                            value={newCaseStudy.title}
-                            onChange={(e) => setNewCaseStudy({ ...newCaseStudy, title: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <Label>Industry</Label>
-                          <Select
-                            value={newCaseStudy.industry}
-                            onValueChange={(value) => setNewCaseStudy({ ...newCaseStudy, industry: value })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select industry" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="BFSI">BFSI</SelectItem>
-                              <SelectItem value="Healthcare">Healthcare</SelectItem>
-                              <SelectItem value="Retail">Retail</SelectItem>
-                              <SelectItem value="Technology">Technology</SelectItem>
-                              <SelectItem value="Manufacturing">Manufacturing</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label>Impact</Label>
-                          <Input
-                            value={newCaseStudy.impact}
-                            onChange={(e) => setNewCaseStudy({ ...newCaseStudy, impact: e.target.value })}
-                            placeholder="e.g., 45% Faster Processing"
-                          />
-                        </div>
-                        <div>
-                          <Label>Description</Label>
-                          <Textarea
-                            value={newCaseStudy.description}
-                            onChange={(e) => setNewCaseStudy({ ...newCaseStudy, description: e.target.value })}
-                            rows={4}
-                          />
-                        </div>
-                        <Button
-                          onClick={() => createCaseStudyMutation.mutate(newCaseStudy)}
-                          disabled={createCaseStudyMutation.isPending}
-                        >
-                          {createCaseStudyMutation.isPending ? "Adding..." : "Add Case Study"}
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog> */}
                 </div>
                 {matchingCaseStudies.length > 0 ? (
                   matchingCaseStudies.map((caseStudy: any, index: number) => {
@@ -922,19 +880,37 @@ function AnalysisStep({
   isComplete: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+    <div className="flex items-center gap-3 py-2">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center relative">
         {isComplete ? (
-          <CheckCircle2 className="h-6 w-6 text-green-500" />
+          <>
+            {/* Green checkmark with background circle */}
+            <div className="absolute inset-0 rounded-full bg-green-500/20 animate-pulse" />
+            <CheckCircle2 className="h-6 w-6 text-green-500 relative z-10" />
+          </>
         ) : isActive ? (
-          <Loader2 className="h-6 w-6 text-primary animate-spin" />
+          <>
+            {/* Spinning loader with pulsing background */}
+            <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse" />
+            <Loader2 className="h-6 w-6 text-primary animate-spin relative z-10" />
+          </>
         ) : (
           <div className="h-6 w-6 rounded-full border-2 border-muted-foreground/30" />
         )}
       </div>
-      <span className={`text-sm ${isActive ? 'text-foreground font-medium' : isComplete ? 'text-muted-foreground' : 'text-muted-foreground/60'}`}>
+      <span className={`text-sm transition-colors ${
+        isActive 
+          ? 'text-foreground font-semibold' 
+          : isComplete 
+            ? 'text-green-600 dark:text-green-400 font-medium' 
+            : 'text-muted-foreground/60'
+      }`}>
         {label}
       </span>
+      {/* Green line indicator for completed steps */}
+      {isComplete && (
+        <div className="ml-auto h-0.5 w-12 bg-green-500 rounded-full" />
+      )}
     </div>
   );
 }

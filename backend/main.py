@@ -1,13 +1,15 @@
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from starlette.middleware.base import BaseHTTPMiddleware
 import sys
 import warnings
 import logging
+from pathlib import Path
 
 # Suppress langchain warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain")
@@ -166,6 +168,26 @@ app.add_middleware(LoggingMiddleware)
 
 
 # -----------------------------------------------------
+# HTTP EXCEPTION HANDLER (for 400, 401, 403, 404, etc.)
+# -----------------------------------------------------
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    # Explicitly add CORS headers
+    origin = request.headers.get("origin")
+    cors_headers = {
+        "Access-Control-Allow-Origin": origin or "*",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods": "*",
+        "Access-Control-Allow-Headers": "*",
+    }
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers={**cors_headers, **(exc.headers or {})}
+    )
+
+# -----------------------------------------------------
 # VALIDATION ERROR HANDLER
 # -----------------------------------------------------
 @app.exception_handler(RequestValidationError)
@@ -179,12 +201,22 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         for e in exc.errors()
     ]
 
+    # Explicitly add CORS headers
+    origin = request.headers.get("origin")
+    cors_headers = {
+        "Access-Control-Allow-Origin": origin or "*",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods": "*",
+        "Access-Control-Allow-Headers": "*",
+    }
+
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "detail": "Validation error",
             "errors": errors
-        }
+        },
+        headers=cors_headers
     )
 
 
@@ -196,13 +228,22 @@ async def global_exception_handler(request: Request, exc: Exception):
 
     logging.error(f"Unhandled Exception: {str(exc)}", exc_info=True)
 
-    # CORS headers will still be injected by middleware
+    # Explicitly add CORS headers to ensure they're present even on errors
+    origin = request.headers.get("origin")
+    cors_headers = {
+        "Access-Control-Allow-Origin": origin or "*",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods": "*",
+        "Access-Control-Allow-Headers": "*",
+    }
+    
     return JSONResponse(
         status_code=500,
         content={
             "detail": "Internal server error",
             "message": str(exc)
-        }
+        },
+        headers=cors_headers
     )
 
 
@@ -225,6 +266,14 @@ app.include_router(notifications.router, tags=["Notifications"])
 app.include_router(chat.router, tags=["Chat"])
 app.include_router(websocket.router, tags=["WebSocket"])
 
+# Serve static files (logos, uploads)
+from pathlib import Path
+upload_dir = Path(settings.UPLOAD_DIR)
+upload_dir.mkdir(parents=True, exist_ok=True)
+try:
+    app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
+except Exception as e:
+    print(f"[WARNING] Could not mount static files: {e}")
 
 @app.get("/")
 async def root():

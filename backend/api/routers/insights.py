@@ -58,7 +58,19 @@ async def get_insights(
                     detail="Insights not found. Please upload an RFP document first, then run the agents workflow using POST /agents/run-all"
                 )
         
-        return insights
+        # Convert Insights model to response - ensure proper serialization
+        try:
+            # Use Pydantic model for proper serialization
+            response_data = InsightsResponse.model_validate(insights)
+            return response_data
+        except Exception as serialization_error:
+            import traceback
+            print(f"Error serializing insights: {serialization_error}")
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error serializing insights: {str(serialization_error)}"
+            )
     except HTTPException:
         raise
     except Exception as e:

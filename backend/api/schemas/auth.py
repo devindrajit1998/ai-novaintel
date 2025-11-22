@@ -33,6 +33,8 @@ class UserResponse(BaseModel):
 class UserUpdate(BaseModel):
     full_name: str | None = None
     role: str | None = None
+    company_name: str | None = None
+    company_logo: str | None = None
 
 class UserSettingsUpdate(BaseModel):
     proposal_tone: str | None = None
@@ -40,6 +42,8 @@ class UserSettingsUpdate(BaseModel):
     secure_mode: bool | None = None
     auto_save_insights: bool | None = None
     theme_preference: str | None = None
+    company_name: str | None = None
+    company_logo: str | None = None
 
 class UserSettingsResponse(BaseModel):
     proposal_tone: str
@@ -47,6 +51,8 @@ class UserSettingsResponse(BaseModel):
     secure_mode: bool
     auto_save_insights: bool
     theme_preference: str
+    company_name: str | None = None
+    company_logo: str | None = None
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr

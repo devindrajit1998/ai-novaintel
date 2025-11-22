@@ -14,22 +14,34 @@ export default function EmailVerification() {
   useEffect(() => {
     const verifyEmail = async () => {
       if (!token) {
+        console.error("[Email Verification] No token found in URL");
         setStatus("error");
         return;
       }
 
+      console.log(`[Email Verification] Starting verification for token: ${token.substring(0, 20)}...`);
+
       try {
         // Call backend API to verify the token
         const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-        const response = await fetch(`${API_BASE_URL}/auth/verify-email/${token}`);
+        const url = `${API_BASE_URL}/auth/verify-email/${token}`;
+        console.log(`[Email Verification] Calling backend: ${url.replace(token, 'TOKEN')}`);
+        
+        const response = await fetch(url);
+        const data = await response.json().catch(() => ({}));
+        
+        console.log(`[Email Verification] Response status: ${response.status}`);
+        console.log(`[Email Verification] Response data:`, data);
         
         if (response.ok) {
+          console.log("[Email Verification] SUCCESS - Email verified");
           setStatus("success");
         } else {
+          console.error(`[Email Verification] FAILED - Status: ${response.status}, Error:`, data.detail || data.message || "Unknown error");
           setStatus("error");
         }
       } catch (error) {
-        console.error("Email verification failed:", error);
+        console.error("[Email Verification] Exception during verification:", error);
         setStatus("error");
       }
     };

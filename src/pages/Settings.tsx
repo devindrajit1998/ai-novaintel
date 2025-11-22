@@ -11,7 +11,7 @@ import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload, Image, X } from "lucide-react";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -28,7 +28,12 @@ export default function Settings() {
     ai_response_style: "balanced",
     secure_mode: false,
     auto_save_insights: true,
+    company_name: "",
+    company_logo: "",
   });
+  
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   // Load user profile
   const { data: currentUser, isLoading: isLoadingUser } = useQuery({
@@ -62,22 +67,72 @@ export default function Settings() {
         ai_response_style: userSettings.ai_response_style || "balanced",
         secure_mode: userSettings.secure_mode || false,
         auto_save_insights: userSettings.auto_save_insights !== false,
+        company_name: userSettings.company_name || "",
+        company_logo: userSettings.company_logo || "",
       });
+      if (userSettings.company_logo) {
+        // Set preview if logo exists
+        const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const logoUrl = userSettings.company_logo.startsWith('http') 
+          ? userSettings.company_logo 
+          : `${baseURL}${userSettings.company_logo}`;
+        setLogoPreview(logoUrl);
+      }
     }
   }, [userSettings]);
 
   // Update profile mutation
   const updateProfileMutation = useMutation({
-    mutationFn: (data: { full_name?: string; role?: string }) =>
+    mutationFn: (data: { full_name?: string; role?: string; company_name?: string; company_logo?: string }) =>
       apiClient.updateUserProfile(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["currentUser"] });
+      queryClient.invalidateQueries({ queryKey: ["userSettings"] });
       toast.success("Profile updated successfully");
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to update profile");
     },
   });
+  
+  // Upload logo mutation
+  const uploadLogoMutation = useMutation({
+    mutationFn: (file: File) => apiClient.uploadCompanyLogo(file),
+    onSuccess: (data) => {
+      const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const logoUrl = data.logo_url.startsWith('http') ? data.logo_url : `${baseURL}${data.logo_url}`;
+      setSettingsData({ ...settingsData, company_logo: data.logo_url });
+      setLogoPreview(logoUrl);
+      queryClient.invalidateQueries({ queryKey: ["userSettings"] });
+      toast.success("Logo uploaded successfully");
+      setIsUploadingLogo(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to upload logo");
+      setIsUploadingLogo(false);
+    },
+  });
+  
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Please upload a valid image file (PNG, JPG, GIF, SVG, or WEBP)");
+      return;
+    }
+    
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be less than 5MB");
+      return;
+    }
+    
+    setIsUploadingLogo(true);
+    uploadLogoMutation.mutate(file);
+  };
 
   // Update settings mutation
   const updateSettingsMutation = useMutation({
@@ -95,10 +150,12 @@ export default function Settings() {
   });
 
   const handleSaveChanges = () => {
-    // Update profile
+    // Update profile (including company name)
     updateProfileMutation.mutate({
       full_name: profileData.full_name,
       role: profileData.role,
+      company_name: settingsData.company_name,
+      company_logo: settingsData.company_logo,
     });
 
     // Update settings
@@ -176,6 +233,86 @@ export default function Settings() {
                     placeholder="e.g., Presales Manager"
                     className="bg-background/50"
                   />
+                </div>
+              </div>
+            </Card>
+
+            {/* Company Information */}
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+              <h2 className="mb-6 font-heading text-xl font-semibold">Company Information</h2>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="company_name">Company Name</Label>
+                  <Input
+                    id="company_name"
+                    value={settingsData.company_name}
+                    onChange={(e) => setSettingsData({ ...settingsData, company_name: e.target.value })}
+                    placeholder="Enter your company name"
+                    className="bg-background/50"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This will be used in proposal templates
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Company Logo</Label>
+                  <div className="space-y-4">
+                    {logoPreview && (
+                      <div className="relative inline-block">
+                        <img
+                          src={logoPreview}
+                          alt="Company logo"
+                          className="h-24 w-auto max-w-xs object-contain border border-border/40 rounded-lg p-2 bg-background/50"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => {
+                            setLogoPreview(null);
+                            setSettingsData({ ...settingsData, company_logo: "" });
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                    
+                    <div
+                      className="flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-background/30 p-8 transition-colors hover:border-primary/50 cursor-pointer"
+                      onClick={() => document.getElementById('logo-upload')?.click()}
+                    >
+                      <input
+                        id="logo-upload"
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/gif,image/svg+xml,image/webp"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                        disabled={isUploadingLogo}
+                      />
+                      <div className="text-center">
+                        {isUploadingLogo ? (
+                          <>
+                            <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
+                            <p className="font-medium">Uploading...</p>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mx-auto mb-4 h-8 w-8 text-muted-foreground" />
+                            <p className="mb-2 font-medium">
+                              {logoPreview ? "Click to change logo" : "Click to upload company logo"}
+                            </p>
+                            <p className="text-sm text-muted-foreground">PNG, JPG, GIF, SVG, or WEBP (Max 5MB)</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Logo will be displayed in proposal templates
+                  </p>
                 </div>
               </div>
             </Card>

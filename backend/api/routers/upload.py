@@ -105,3 +105,66 @@ async def upload_rfp(
         "rfp_document_id": rfp_doc.id
     }
 
+@router.post("/company-logo")
+async def upload_company_logo(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a company logo image."""
+    # Validate file type (only images)
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No file provided"
+        )
+    
+    file_ext = get_file_extension(file.filename)
+    allowed_image_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp']
+    
+    if file_ext not in allowed_image_extensions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Only image files are allowed. Supported formats: {', '.join(allowed_image_extensions)}"
+        )
+    
+    # Read file content
+    file_content = await file.read()
+    file_size = len(file_content)
+    
+    # Check file size (max 5MB for logos)
+    max_logo_size = 5 * 1024 * 1024  # 5MB
+    if file_size > max_logo_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File size exceeds maximum allowed size of 5MB"
+        )
+    
+    # Create logos directory
+    logos_dir = UPLOAD_DIR / "company_logos"
+    logos_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate unique filename
+    unique_filename = f"user_{current_user.id}_{uuid.uuid4()}{file_ext}"
+    logo_path = logos_dir / unique_filename
+    
+    # Save file
+    with open(logo_path, "wb") as f:
+        f.write(file_content)
+    
+    # Update user's company_logo field
+    current_user.company_logo = f"/uploads/company_logos/{unique_filename}"
+    db.commit()
+    db.refresh(current_user)
+    
+    # Return relative path that can be used to access the logo
+    # The frontend will construct the full URL
+    logo_url = f"/uploads/company_logos/{unique_filename}"
+    
+    return {
+        "success": True,
+        "message": "Logo uploaded successfully",
+        "logo_url": logo_url,
+        "file_path": str(logo_path)
+    }
+

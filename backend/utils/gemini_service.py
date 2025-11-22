@@ -6,9 +6,11 @@ import json
 import re
 import requests
 from utils.config import settings
+from utils.retry import retry, async_retry
+from utils.circuit_breaker import circuit_breaker, async_circuit_breaker
 
 class GeminiService:
-    """Service for interacting with Google Gemini API directly."""
+    """Service for interacting with Google Gemini API directly with retry and circuit breaker."""
     
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
@@ -18,6 +20,21 @@ class GeminiService:
     def is_available(self) -> bool:
         """Check if Gemini service is available."""
         return bool(self.api_key)
+    
+    @retry(max_attempts=3, backoff="exponential", base_delay=1.0, exceptions=(requests.RequestException,))
+    @circuit_breaker(failure_threshold=5, recovery_timeout=60.0, expected_exception=Exception)
+    def _make_request(self, url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Make HTTP request with retry and circuit breaker."""
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        if self.api_key:
+            url = f"{url}?key={self.api_key}"
+        
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        response.raise_for_status()
+        return response.json()
     
     def generate_content(
         self,
@@ -61,28 +78,13 @@ class GeminiService:
         }
         
         if system_instruction:
-            payload["systemInstruction"] = {
-                "parts": [{"text": system_instruction}]
-            }
-        
-        headers = {
-            "Content-Type": "application/json"
-        }
+            payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
         
         try:
-            response = requests.post(
-                url,
-                json=payload,
-                headers=headers,
-                params={"key": self.api_key}
-            )
-            response.raise_for_status()
+            response_data = self._make_request(url, payload)
             
-            data = response.json()
-            
-            # Extract content from response
-            if "candidates" in data and len(data["candidates"]) > 0:
-                candidate = data["candidates"][0]
+            if "candidates" in response_data and len(response_data["candidates"]) > 0:
+                candidate = response_data["candidates"][0]
                 if "content" in candidate and "parts" in candidate["content"]:
                     content = candidate["content"]["parts"][0].get("text", "")
                     return {
@@ -92,18 +94,17 @@ class GeminiService:
             
             return {
                 "content": None,
-                "error": "No content in response"
+                "error": "No response from Gemini API"
             }
-            
-        except requests.exceptions.RequestException as e:
+        except requests.RequestException as e:
             return {
                 "content": None,
-                "error": f"API request failed: {str(e)}"
+                "error": f"Request failed: {str(e)}"
             }
         except Exception as e:
             return {
                 "content": None,
-                "error": f"Error: {str(e)}"
+                "error": f"Unexpected error: {str(e)}"
             }
     
     def chat(
@@ -171,23 +172,11 @@ class GeminiService:
             })
             payload["contents"] = contents
         
-        headers = {
-            "Content-Type": "application/json"
-        }
-        
         try:
-            response = requests.post(
-                url,
-                json=payload,
-                headers=headers,
-                params={"key": self.api_key}
-            )
-            response.raise_for_status()
+            response_data = self._make_request(url, payload)
             
-            data = response.json()
-            
-            if "candidates" in data and len(data["candidates"]) > 0:
-                candidate = data["candidates"][0]
+            if "candidates" in response_data and len(response_data["candidates"]) > 0:
+                candidate = response_data["candidates"][0]
                 if "content" in candidate and "parts" in candidate["content"]:
                     content = candidate["content"]["parts"][0].get("text", "")
                     return {

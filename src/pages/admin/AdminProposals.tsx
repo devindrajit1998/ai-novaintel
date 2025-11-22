@@ -40,6 +40,8 @@ import { useState } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { MarkdownText } from "@/components/ui/markdown-text";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function AdminProposals() {
     const queryClient = useQueryClient();
@@ -267,9 +269,15 @@ export default function AdminProposals() {
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            onClick={() => {
-                                                                setSelectedProposal(proposal);
-                                                                setViewDialogOpen(true);
+                                                            onClick={async () => {
+                                                                try {
+                                                                    // Fetch full proposal with sections
+                                                                    const fullProposal = await apiClient.getAdminProposal(proposal.id);
+                                                                    setSelectedProposal(fullProposal);
+                                                                    setViewDialogOpen(true);
+                                                                } catch (error: any) {
+                                                                    toast.error(error.message || "Failed to load proposal details");
+                                                                }
                                                             }}
                                                         >
                                                             <Eye className="h-4 w-4 mr-1" />
@@ -375,58 +383,107 @@ export default function AdminProposals() {
 
                 {/* View Dialog */}
                 <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
+                    <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+                        <DialogHeader className="flex-shrink-0">
                             <DialogTitle>{selectedProposal?.title}</DialogTitle>
                             <DialogDescription>
-                                Proposal Details
+                                Proposal Details and Preview
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <p className="text-sm font-medium mb-1">Status:</p>
-                                    <div>{selectedProposal && getStatusBadge(selectedProposal.status)}</div>
+                        <ScrollArea className="h-[calc(90vh-180px)] pr-4">
+                            <div className="space-y-6 py-2">
+                                {/* Proposal Metadata */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <p className="text-sm font-medium mb-1">Status:</p>
+                                        <div>{selectedProposal && getStatusBadge(selectedProposal.status)}</div>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium mb-1">Project ID:</p>
+                                        <Badge variant="outline">#{selectedProposal?.project_id}</Badge>
+                                    </div>
+                                    {selectedProposal?.template_type && (
+                                        <div>
+                                            <p className="text-sm font-medium mb-1">Template Type:</p>
+                                            <p className="text-sm text-muted-foreground capitalize">
+                                                {selectedProposal.template_type}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {selectedProposal?.submitted_at && (
+                                        <div>
+                                            <p className="text-sm font-medium mb-1">Submitted:</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {format(new Date(selectedProposal.submitted_at), "PPpp")}
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
-                                <div>
-                                    <p className="text-sm font-medium mb-1">Project ID:</p>
-                                    <Badge variant="outline">#{selectedProposal?.project_id}</Badge>
-                                </div>
+                                
+                                {selectedProposal?.reviewed_at && (
+                                    <div>
+                                        <p className="text-sm font-medium mb-1">Reviewed:</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            {format(new Date(selectedProposal.reviewed_at), "PPpp")}
+                                        </p>
+                                    </div>
+                                )}
+                                
+                                {selectedProposal?.submitter_message && (
+                                    <div>
+                                        <p className="text-sm font-medium mb-1">Submitter Message:</p>
+                                        <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                                            {selectedProposal.submitter_message}
+                                        </p>
+                                    </div>
+                                )}
+                                
+                                {selectedProposal?.admin_feedback && (
+                                    <div>
+                                        <p className="text-sm font-medium mb-1">Admin Feedback:</p>
+                                        <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                                            {selectedProposal.admin_feedback}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Proposal Sections Preview */}
+                                {selectedProposal?.sections && Array.isArray(selectedProposal.sections) && selectedProposal.sections.length > 0 && (
+                                    <div className="space-y-4">
+                                        <div className="border-t pt-4">
+                                            <h3 className="text-lg font-semibold mb-4">Proposal Content</h3>
+                                            <div className="space-y-6">
+                                                {selectedProposal.sections.map((section: any, index: number) => (
+                                                    <Card key={section.id || index} className="p-4">
+                                                        <h4 className="font-semibold text-base mb-3 text-foreground">
+                                                            {section.title || `Section ${index + 1}`}
+                                                        </h4>
+                                                        {section.content ? (
+                                                            <div className="prose prose-sm max-w-none">
+                                                                <MarkdownText 
+                                                                    content={section.content} 
+                                                                    className="text-foreground/90"
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-sm text-muted-foreground italic">No content available</p>
+                                                        )}
+                                                    </Card>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {(!selectedProposal?.sections || (Array.isArray(selectedProposal.sections) && selectedProposal.sections.length === 0)) && (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                        <p>No proposal content available</p>
+                                    </div>
+                                )}
                             </div>
-                            {selectedProposal?.submitted_at && (
-                                <div>
-                                    <p className="text-sm font-medium mb-1">Submitted:</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        {format(new Date(selectedProposal.submitted_at), "PPpp")}
-                                    </p>
-                                </div>
-                            )}
-                            {selectedProposal?.reviewed_at && (
-                                <div>
-                                    <p className="text-sm font-medium mb-1">Reviewed:</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        {format(new Date(selectedProposal.reviewed_at), "PPpp")}
-                                    </p>
-                                </div>
-                            )}
-                            {selectedProposal?.submitter_message && (
-                                <div>
-                                    <p className="text-sm font-medium mb-1">Submitter Message:</p>
-                                    <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                                        {selectedProposal.submitter_message}
-                                    </p>
-                                </div>
-                            )}
-                            {selectedProposal?.admin_feedback && (
-                                <div>
-                                    <p className="text-sm font-medium mb-1">Admin Feedback:</p>
-                                    <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                                        {selectedProposal.admin_feedback}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
+                        </ScrollArea>
 
                         <DialogFooter>
                             <Button

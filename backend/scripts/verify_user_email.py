@@ -13,6 +13,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db.database import SessionLocal
 from models.user import User
 
+# Import all models to fix relationship issues
+try:
+    from models.case_study_document import CaseStudyDocument
+except ImportError:
+    pass
+
 def verify_user_email(email: str):
     """Manually verify a user's email."""
     db = SessionLocal()
@@ -20,11 +26,13 @@ def verify_user_email(email: str):
         user = db.query(User).filter(User.email == email).first()
         
         if not user:
-            print(f"❌ User not found: {email}")
+            print(f"[ERROR] User not found: {email}")
             return False
         
         if user.email_verified:
-            print(f"✓ Email already verified for: {email}")
+            print(f"[OK] Email already verified for: {email}")
+            print(f"  User ID: {user.id}")
+            print(f"  Active: {user.is_active}")
             return True
         
         # Verify email
@@ -36,12 +44,16 @@ def verify_user_email(email: str):
         db.commit()
         db.refresh(user)
         
-        print(f"✓ Email verified successfully for: {email}")
-        print(f"  User is now active and can login")
+        print(f"[SUCCESS] Email verified successfully for: {email}")
+        print(f"  User ID: {user.id}")
+        print(f"  Email verified: {user.email_verified}")
+        print(f"  User active: {user.is_active}")
+        print(f"  Verified at: {user.email_verified_at}")
+        print(f"  User can now login!")
         return True
         
     except Exception as e:
-        print(f"❌ Error verifying email: {e}")
+        print(f"[ERROR] Error verifying email: {e}")
         import traceback
         traceback.print_exc()
         db.rollback()

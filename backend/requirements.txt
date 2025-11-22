@@ -72,3 +72,15 @@ langgraph==0.2.28
 langchain>=0.3.0,<1.0.0
 langchain-core>=0.3.0,<1.0.0
 langchain-community>=0.3.0,<1.0.0
+
+# ===============================
+# CACHING & RESILIENCE
+# ===============================
+redis==5.0.1
+hiredis==2.3.2  # Faster Redis protocol parser
+tenacity==8.2.3  # Retry library
+
+# ===============================
+# QUERY OPTIMIZATION
+# ===============================
+rank-bm25==0.2.2  # BM25 keyword search

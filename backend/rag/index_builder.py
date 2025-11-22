@@ -101,9 +101,64 @@ class IndexBuilder:
             }
         
         except Exception as e:
+            error_msg = str(e)
+            
+            # Check if it's a dimension mismatch error
+            if "dimension" in error_msg.lower() or "dimensionality" in error_msg.lower():
+                print(f"[WARNING] Embedding dimension mismatch detected: {error_msg}")
+                print("[INFO] Attempting to recreate collection with correct dimensions...")
+                
+                # Try to recreate the collection
+                if vector_store_manager.recreate_collection():
+                    # Retry building the index
+                    try:
+                        # Get the vector store again (it was recreated)
+                        self.vector_store = vector_store_manager.get_vector_store()
+                        
+                        # Create storage context with new vector store
+                        storage_context = StorageContext.from_defaults(
+                            vector_store=self.vector_store
+                        )
+                        
+                        # Create index from nodes
+                        index = VectorStoreIndex(
+                            nodes=nodes,
+                            storage_context=storage_context,
+                            show_progress=True
+                        )
+                        
+                        # Update RFP document with extracted text
+                        rfp_doc = db.query(RFPDocument).filter(
+                            RFPDocument.id == rfp_document_id
+                        ).first()
+                        
+                        if rfp_doc:
+                            rfp_doc.extracted_text = process_result['document'].text
+                            rfp_doc.page_count = process_result['extraction_result'].get('page_count')
+                            db.commit()
+                        
+                        print("[OK] Index built successfully after collection recreation")
+                        return {
+                            'success': True,
+                            'index_id': f"project_{project_id}_rfp_{rfp_document_id}",
+                            'chunk_count': len(nodes),
+                            'document_id': rfp_document_id,
+                            'message': f'Index built successfully with {len(nodes)} chunks (collection recreated due to dimension mismatch)'
+                        }
+                    except Exception as retry_error:
+                        return {
+                            'success': False,
+                            'error': f'Error building index after collection recreation: {str(retry_error)}'
+                        }
+                else:
+                    return {
+                        'success': False,
+                        'error': f'Embedding dimension mismatch. Please restart the backend server to recreate the collection. Original error: {error_msg}'
+                    }
+            
             return {
                 'success': False,
-                'error': f'Error building index: {str(e)}'
+                'error': f'Error building index: {error_msg}'
             }
     
     def delete_index_for_document(

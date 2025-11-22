@@ -1,5 +1,5 @@
 """
-Document processing and chunking using LlamaIndex.
+Document processing and chunking using LlamaIndex with advanced strategies.
 """
 from typing import List, Optional, Dict, Any
 from pathlib import Path
@@ -9,16 +9,37 @@ from llama_index.core.schema import BaseNode
 from utils.text_extractor import TextExtractor
 from rag.embedding_service import embedding_service
 from utils.config import settings
+from services.rag.chunking_strategy import ChunkingStrategyFactory, ChunkingStrategy
 
 class DocumentProcessor:
-    """Process documents for RAG pipeline."""
+    """Process documents for RAG pipeline with advanced chunking."""
     
-    def __init__(self):
+    def __init__(self, chunking_strategy: str = "fixed", **chunking_kwargs):
+        """
+        Initialize document processor.
+        
+        Args:
+            chunking_strategy: "fixed", "semantic", "hierarchical", or "adaptive"
+            **chunking_kwargs: Strategy-specific parameters
+        """
         self.text_extractor = TextExtractor()
-        self.chunk_size = 500  # tokens
+        self.chunk_size = 500  # tokens (default, may be overridden by strategy)
         self.chunk_overlap = 50  # tokens
         
-        # Initialize node parser
+        # Initialize chunking strategy
+        try:
+            self.chunking_strategy: ChunkingStrategy = ChunkingStrategyFactory.create(
+                strategy_type=chunking_strategy,
+                **chunking_kwargs
+            )
+            self.strategy_type = chunking_strategy
+        except Exception as e:
+            print(f"[WARNING] Failed to create {chunking_strategy} chunking strategy: {e}")
+            print("   Falling back to fixed-size chunking")
+            self.chunking_strategy = ChunkingStrategyFactory.create("fixed")
+            self.strategy_type = "fixed"
+        
+        # Legacy node parser for backward compatibility
         self.node_parser = SentenceSplitter(
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
@@ -54,7 +75,7 @@ class DocumentProcessor:
     
     def chunk_document(self, document: Document) -> List[BaseNode]:
         """
-        Chunk a document into nodes.
+        Chunk a document into nodes using the configured strategy.
         
         Args:
             document: LlamaIndex Document
@@ -62,7 +83,8 @@ class DocumentProcessor:
         Returns:
             List of nodes (chunks)
         """
-        nodes = self.node_parser.get_nodes_from_documents([document])
+        # Use the configured chunking strategy
+        nodes = self.chunking_strategy.chunk(document)
         return nodes
     
     def process_file(

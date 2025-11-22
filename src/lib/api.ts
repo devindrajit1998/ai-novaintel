@@ -321,6 +321,8 @@ class ApiClient {
     ai_response_style?: string;
     secure_mode?: boolean;
     auto_save_insights?: boolean;
+    company_name?: string;
+    company_logo?: string;
   }): Promise<any> {
     return this.request<any>("/auth/me/settings", {
       method: "PUT",

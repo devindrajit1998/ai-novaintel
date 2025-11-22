@@ -13,6 +13,8 @@ def migrate_user_settings():
         ("secure_mode", "BOOLEAN", "FALSE"),
         ("auto_save_insights", "BOOLEAN", "TRUE"),
         ("theme_preference", "VARCHAR(20)", "'light'"),
+        ("company_name", "VARCHAR(255)", "NULL"),
+        ("company_logo", "VARCHAR(500)", "NULL"),
     ]
     
     try:
@@ -46,11 +48,17 @@ def migrate_user_settings():
             for column_name, column_type, default_value in columns_to_add:
                 if column_name not in existing_columns:
                     try:
-                        # Add column with default value
-                        alter_query = text(f"""
-                            ALTER TABLE users 
-                            ADD COLUMN {column_name} {column_type} DEFAULT {default_value}
-                        """)
+                        # Add column with default value (handle NULL specially)
+                        if default_value == "NULL":
+                            alter_query = text(f"""
+                                ALTER TABLE users 
+                                ADD COLUMN {column_name} {column_type}
+                            """)
+                        else:
+                            alter_query = text(f"""
+                                ALTER TABLE users 
+                                ADD COLUMN {column_name} {column_type} DEFAULT {default_value}
+                            """)
                         conn.execute(alter_query)
                         conn.commit()
                         print(f"✓ Added column: {column_name}")

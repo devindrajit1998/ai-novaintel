@@ -56,10 +56,32 @@ BEGIN
     END IF;
 END $$;
 
+-- Add company_name column
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name='users' AND column_name='company_name'
+    ) THEN
+        ALTER TABLE users ADD COLUMN company_name VARCHAR(255);
+    END IF;
+END $$;
+
+-- Add company_logo column
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name='users' AND column_name='company_logo'
+    ) THEN
+        ALTER TABLE users ADD COLUMN company_logo VARCHAR(500);
+    END IF;
+END $$;
+
 -- Verify columns were added
 SELECT column_name, data_type, column_default 
 FROM information_schema.columns 
 WHERE table_name='users' 
-AND column_name IN ('proposal_tone', 'ai_response_style', 'secure_mode', 'auto_save_insights', 'theme_preference')
+AND column_name IN ('proposal_tone', 'ai_response_style', 'secure_mode', 'auto_save_insights', 'theme_preference', 'company_name', 'company_logo')
 ORDER BY column_name;
 

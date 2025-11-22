@@ -1,17 +1,20 @@
 """
 Chat service for RAG-based conversations with RFP documents.
 """
+import hashlib
 from typing import List, Optional, Dict, Any
 from rag.retriever import retriever
 from utils.config import settings
 from utils.gemini_service import gemini_service
+from services.cache.rag_cache import rag_cache
 
 
 class ChatService:
-    """Service for chatting with RFP documents using RAG."""
+    """Service for chatting with RFP documents using RAG with caching."""
     
     def __init__(self):
         self.service = gemini_service
+        self.cache = rag_cache
         self._initialize()
     
     def _initialize(self):
@@ -25,6 +28,15 @@ class ChatService:
         """Check if chat service is available."""
         return self.service.is_available()
     
+    def _hash_conversation(self, conversation_history: Optional[List[Dict[str, str]]]) -> str:
+        """Create a hash of conversation history for cache key."""
+        if not conversation_history:
+            return "empty"
+        # Create hash from last few messages (for context)
+        recent_messages = conversation_history[-3:] if len(conversation_history) > 3 else conversation_history
+        conv_str = str(recent_messages)
+        return hashlib.md5(conv_str.encode()).hexdigest()[:16]
+    
 
     # -------------------------------------------------------------------------
     #                               CHAT METHOD
@@ -34,10 +46,11 @@ class ChatService:
         query: str,
         project_id: int,
         conversation_history: Optional[List[Dict[str, str]]] = None,
-        top_k: int = 5
+        top_k: int = 5,
+        use_cache: bool = True
     ) -> Dict[str, Any]:
         """
-        Chat with RFP document using RAG.
+        Chat with RFP document using RAG with caching.
         """
 
         if not self.is_available():
@@ -50,10 +63,17 @@ class ChatService:
                 'query': query
             }
 
+        # Check cache first
+        if use_cache:
+            conv_hash = self._hash_conversation(conversation_history)
+            cached_response = self.cache.get_chat_response(query, project_id, conv_hash)
+            if cached_response is not None:
+                return cached_response
+
         # ------------------------------
         # Retrieve context chunks
         # ------------------------------
-        nodes = retriever.retrieve(query, project_id, top_k)
+        nodes = retriever.retrieve(query, project_id, top_k, use_cache=use_cache)
 
         if not nodes:
             return {
@@ -156,13 +176,20 @@ INSTRUCTIONS:
 
             answer = result.get("content", "")
 
-            return {
+            response = {
                 'success': True,
                 'answer': answer,
                 'sources': sources,
                 'context_used': len(nodes),
                 'query': query
             }
+            
+            # Cache response
+            if use_cache:
+                conv_hash = self._hash_conversation(conversation_history)
+                self.cache.set_chat_response(query, project_id, conv_hash, response)
+            
+            return response
 
         except Exception as e:
             return {

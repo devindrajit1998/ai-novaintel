@@ -3,11 +3,33 @@ Email service for sending verification emails using Google SMTP.
 """
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from utils.config import settings
+from datetime import datetime
+import traceback
+import sys
 
 # Email configuration for Google SMTP
 # Google SMTP settings: smtp.gmail.com, port 587, STARTTLS
 # Lazy initialization - only create config when email is actually configured
 _conf = None
+
+def _log_email_error(email_type: str, recipient: str, error: Exception, context: str = ""):
+    """Log email sending errors with full details."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    error_type = type(error).__name__
+    error_msg = str(error)
+    
+    print(f"\n{'='*60}", file=sys.stderr, flush=True)
+    print(f"[EMAIL ERROR] {timestamp}", file=sys.stderr, flush=True)
+    print(f"{'='*60}", file=sys.stderr, flush=True)
+    print(f"Email Type: {email_type}", file=sys.stderr, flush=True)
+    print(f"Recipient: {recipient}", file=sys.stderr, flush=True)
+    if context:
+        print(f"Context: {context}", file=sys.stderr, flush=True)
+    print(f"Error Type: {error_type}", file=sys.stderr, flush=True)
+    print(f"Error Message: {error_msg}", file=sys.stderr, flush=True)
+    print(f"\nFull Traceback:", file=sys.stderr, flush=True)
+    traceback.print_exc(file=sys.stderr)
+    print(f"{'='*60}\n", file=sys.stderr, flush=True)
 
 def get_email_config():
     """Get or create email configuration. Returns None if email is not configured."""
@@ -29,62 +51,74 @@ def get_email_config():
 
 async def send_verification_email(email: str, verification_token: str):
     """Send email verification link via Google SMTP."""
-    conf = get_email_config()
-    if not conf:
-        print(f"⚠ Email not configured. Verification link: {settings.FRONTEND_URL}/verify-email/{verification_token}")
-        return
-    
-    verification_url = f"{settings.FRONTEND_URL}/verify-email/{verification_token}"
-    
-    message = MessageSchema(
-        subject="Verify your NovaIntel account",
-        recipients=[email],
-        body=f"""
-        <html>
-        <body>
-            <h2>Welcome to NovaIntel!</h2>
-            <p>Please verify your email address by clicking the link below:</p>
-            <p><a href="{verification_url}">Verify Email</a></p>
-            <p>Or copy this link: {verification_url}</p>
-            <p>This link will expire in 7 days.</p>
-        </body>
-        </html>
-        """,
-        subtype="html"
-    )
-    
-    fm = FastMail(conf)
-    await fm.send_message(message)
+    try:
+        conf = get_email_config()
+        if not conf:
+            print(f"[EMAIL WARNING] Email service not configured. Cannot send verification email to: {email}", file=sys.stderr, flush=True)
+            print(f"Verification link (manual): {settings.FRONTEND_URL}/verify-email?token={verification_token}", file=sys.stderr, flush=True)
+            return
+        
+        verification_url = f"{settings.FRONTEND_URL}/verify-email?token={verification_token}"
+        
+        message = MessageSchema(
+            subject="Verify your NovaIntel account",
+            recipients=[email],
+            body=f"""
+            <html>
+            <body>
+                <h2>Welcome to NovaIntel!</h2>
+                <p>Please verify your email address by clicking the link below:</p>
+                <p><a href="{verification_url}">Verify Email</a></p>
+                <p>Or copy this link: {verification_url}</p>
+                <p>This link will expire in 7 days.</p>
+            </body>
+            </html>
+            """,
+            subtype="html"
+        )
+        
+        fm = FastMail(conf)
+        await fm.send_message(message)
+        print(f"[EMAIL SUCCESS] Verification email sent to: {email}", file=sys.stderr, flush=True)
+    except Exception as e:
+        _log_email_error("Verification Email", email, e, "User Registration")
+        raise
 
 async def send_password_reset_email(email: str, reset_token: str):
     """Send password reset link via Google SMTP."""
-    conf = get_email_config()
-    if not conf:
-        print(f"⚠ Email not configured. Reset link: {settings.FRONTEND_URL}/reset-password?token={reset_token}")
-        return
-    
-    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
-    
-    message = MessageSchema(
-        subject="Reset your NovaIntel password",
-        recipients=[email],
-        body=f"""
-        <html>
-        <body>
-            <h2>Password Reset Request</h2>
-            <p>You requested to reset your password. Click the link below to set a new password:</p>
-            <p><a href="{reset_url}">Reset Password</a></p>
-            <p>Or copy this link: {reset_url}</p>
-            <p>This link will expire in 7 days.</p>
-            <p>If you didn't request this, please ignore this email.</p>
-        </body>
-        </html>
-        """,
-        subtype="html"
-    )
-    
-    fm = FastMail(conf)
-    await fm.send_message(message)
+    try:
+        conf = get_email_config()
+        if not conf:
+            print(f"[EMAIL WARNING] Email service not configured. Cannot send password reset email to: {email}", file=sys.stderr, flush=True)
+            print(f"Reset link (manual): {settings.FRONTEND_URL}/reset-password?token={reset_token}", file=sys.stderr, flush=True)
+            return
+        
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+        
+        message = MessageSchema(
+            subject="Reset your NovaIntel password",
+            recipients=[email],
+            body=f"""
+            <html>
+            <body>
+                <h2>Password Reset Request</h2>
+                <p>You requested to reset your password. Click the link below to set a new password:</p>
+                <p><a href="{reset_url}">Reset Password</a></p>
+                <p>Or copy this link: {reset_url}</p>
+                <p>This link will expire in 7 days.</p>
+                <p>If you didn't request this, please ignore this email.</p>
+            </body>
+            </html>
+            """,
+            subtype="html"
+        )
+        
+        fm = FastMail(conf)
+        await fm.send_message(message)
+        print(f"[EMAIL SUCCESS] Password reset email sent to: {email}", file=sys.stderr, flush=True)
+    except Exception as e:
+        _log_email_error("Password Reset Email", email, e, "Password Reset Request")
+        raise
 
 async def send_proposal_submission_email(
     manager_email: str,
@@ -113,17 +147,47 @@ async def send_proposal_submission_email(
     admin_dashboard_url = f"{settings.FRONTEND_URL}/admin/proposals"
     proposal_url = f"{settings.FRONTEND_URL}/admin/proposals" if proposal_id else admin_dashboard_url
     
-    # Format proposal sections summary
-    sections_summary = ""
+    # Format proposal sections preview
+    sections_preview = ""
     if proposal_sections and len(proposal_sections) > 0:
-        sections_list = "<ul style='margin: 10px 0; padding-left: 20px;'>"
-        for section in proposal_sections[:5]:  # Show first 5 sections
-            section_title = section.get('title', 'Untitled Section') if isinstance(section, dict) else str(section)
-            sections_list += f"<li style='margin: 5px 0;'>{section_title}</li>"
-        if len(proposal_sections) > 5:
-            sections_list += f"<li style='margin: 5px 0; color: #6b7280;'>... and {len(proposal_sections) - 5} more sections</li>"
-        sections_list += "</ul>"
-        sections_summary = f"<p style='margin: 5px 0;'><strong>Sections ({len(proposal_sections)}):</strong></p>{sections_list}"
+        sections_preview = "<div style='margin: 20px 0;'>"
+        sections_preview += f"<h3 style='color: #1e40af; margin-bottom: 15px;'>Proposal Preview ({len(proposal_sections)} sections)</h3>"
+        
+        for idx, section in enumerate(proposal_sections[:10]):  # Show first 10 sections
+            section_title = section.get('title', f'Section {idx + 1}') if isinstance(section, dict) else f'Section {idx + 1}'
+            section_content = section.get('content', '') if isinstance(section, dict) else ''
+            
+            # Truncate content for email preview (first 500 chars)
+            content_preview = section_content[:500] if section_content else "No content available"
+            if len(section_content) > 500:
+                content_preview += "..."
+            
+            # Escape HTML and convert markdown-like formatting to HTML for email
+            import html
+            content_html = html.escape(content_preview)
+            # Convert markdown to HTML
+            # Handle bold **text**
+            import re
+            content_html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content_html)
+            # Handle italic *text* (but not **text**)
+            content_html = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', content_html)
+            # Handle line breaks
+            content_html = content_html.replace('\n\n', '</p><p style="margin: 8px 0;">')
+            content_html = content_html.replace('\n', '<br>')
+            
+            sections_preview += f"""
+            <div style='background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 15px; margin-bottom: 15px;'>
+                <h4 style='color: #1e40af; margin: 0 0 10px 0; font-size: 16px; font-weight: 600;'>{section_title}</h4>
+                <div style='color: #374151; font-size: 14px; line-height: 1.6;'>
+                    <p style="margin: 8px 0;">{content_html}</p>
+                </div>
+            </div>
+            """
+        
+        if len(proposal_sections) > 10:
+            sections_preview += f"<p style='color: #6b7280; font-size: 14px; margin-top: 10px;'>... and {len(proposal_sections) - 10} more sections (view full proposal in dashboard)</p>"
+        
+        sections_preview += "</div>"
     
     # Format submitted date
     submitted_date = submitted_at if submitted_at else "Just now"
@@ -160,7 +224,7 @@ async def send_proposal_submission_email(
                 <p style="margin: 8px 0;"><strong>Submitted By:</strong> {submitter_name}</p>
                 {f'<p style="margin: 8px 0;"><strong>Message from Submitter:</strong></p><p style="margin: 8px 0; padding: 10px; background-color: #ffffff; border-radius: 4px; font-style: italic;">{submitter_message}</p>' if submitter_message else ''}
                 
-                {f'<hr style="border: none; border-top: 1px solid #d1d5db; margin: 15px 0;"><h3 style="color: #1e40af;">Proposal Structure</h3>{sections_summary}' if sections_summary else ''}
+                {f'<hr style="border: none; border-top: 1px solid #d1d5db; margin: 15px 0;">{sections_preview}' if sections_preview else ''}
             </div>
             
             <p style="font-size: 16px; font-weight: 500;">Please review the proposal and provide your feedback.</p>
@@ -199,7 +263,13 @@ async def send_proposal_submission_email(
     try:
         fm = FastMail(conf)
         await fm.send_message(message)
-        print(f"[OK] Proposal submission email sent to {manager_email}")
+        print(f"[EMAIL SUCCESS] Proposal submission email sent to: {manager_email} (Proposal: {proposal_title})", file=sys.stderr, flush=True)
     except Exception as e:
-        print(f"[WARNING] Failed to send proposal submission email to {manager_email}: {e}")
+        _log_email_error(
+            "Proposal Submission Email", 
+            manager_email, 
+            e, 
+            f"Proposal: {proposal_title}, Submitter: {submitter_name}, Proposal ID: {proposal_id}"
+        )
+        raise
 

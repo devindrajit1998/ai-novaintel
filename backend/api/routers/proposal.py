@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+import sys
 from db.database import get_db
 from models.user import User
 from models.project import Project
@@ -779,6 +780,7 @@ async def submit_proposal(
             db.add(notification)
             
             # Send email notification with all proposal data (non-blocking)
+            import sys
             try:
                 await send_proposal_submission_email(
                     manager_email=admin.email,
@@ -797,7 +799,8 @@ async def submit_proposal(
                     submitted_at=submitted_at_str
                 )
             except Exception as e:
-                print(f"[WARNING] Failed to send email to admin {admin.email}: {e}")
+                # Error already logged in email_service with full details
+                print(f"[PROPOSAL SUBMISSION WARNING] Email notification failed for admin: {admin.email}, Proposal ID: {proposal.id}", file=sys.stderr, flush=True)
         
         # If a specific manager_id was provided, also send notification to that manager
         # (in addition to all admins, if not already included)
