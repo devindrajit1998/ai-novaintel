@@ -77,14 +77,16 @@ export default function ResetPassword() {
   if (tokenValid === false) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-hero px-4">
-        <Card className="w-full max-w-md border-border/40 bg-gradient-card p-8 shadow-glass backdrop-blur-sm">
+        <Card className="w-full max-w-md border-border/40 bg-card/80 backdrop-blur-sm shadow-xl p-6 sm:p-8">
           <div className="text-center">
-            <XCircle className="mx-auto mb-4 h-16 w-16 text-destructive" />
-            <h1 className="mb-2 font-heading text-3xl font-bold">Invalid Link</h1>
-            <p className="mb-6 text-muted-foreground">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-red-500/10 to-red-500/5">
+              <XCircle className="h-7 w-7 text-destructive" />
+            </div>
+            <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold">Invalid Link</h1>
+            <p className="mb-6 text-sm sm:text-base text-muted-foreground">
               This password reset link is invalid or has expired. Please request a new one.
             </p>
-            <Button asChild className="bg-gradient-primary">
+            <Button asChild variant="gradient" className="shadow-md hover:shadow-lg">
               <Link to="/forgot-password">Request New Link</Link>
             </Button>
           </div>
@@ -96,9 +98,10 @@ export default function ResetPassword() {
   if (tokenValid === null) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-hero px-4">
-        <Card className="w-full max-w-md border-border/40 bg-gradient-card p-8 shadow-glass backdrop-blur-sm">
+        <Card className="w-full max-w-md border-border/40 bg-card/80 backdrop-blur-sm shadow-xl p-6 sm:p-8">
           <div className="text-center">
-            <p className="text-muted-foreground">Loading...</p>
+            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <p className="text-sm sm:text-base text-muted-foreground">Loading...</p>
           </div>
         </Card>
       </div>
@@ -106,11 +109,14 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-hero px-4">
-      <Card className="w-full max-w-md border-border/40 bg-gradient-card p-8 shadow-glass backdrop-blur-sm">
-        <div className="mb-6">
-          <h1 className="mb-2 font-heading text-3xl font-bold">Reset Password</h1>
-          <p className="text-muted-foreground">Enter your new password below</p>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-hero px-4 py-12">
+      <Card className="w-full max-w-md border-border/40 bg-card/80 backdrop-blur-sm shadow-xl p-6 sm:p-8">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-primary shadow-lg">
+            <span className="text-2xl font-bold text-primary-foreground">🔒</span>
+          </div>
+          <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold">Reset Password</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Enter your new password below</p>
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
@@ -145,7 +151,8 @@ export default function ResetPassword() {
 
           <Button 
             type="submit" 
-            className="w-full bg-gradient-primary shadow-md" 
+            variant="gradient"
+            className="w-full shadow-md hover:shadow-lg" 
             disabled={isLoading}
           >
             {isLoading ? "Resetting..." : "Reset Password"}

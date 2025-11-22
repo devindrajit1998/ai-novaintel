@@ -3,8 +3,12 @@ Value Proposition Agent - Creates value propositions mapped to challenges.
 """
 from typing import Dict, Any, List
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
 from utils.config import settings
 from utils.llm_factory import get_llm
+from utils.model_router import TaskType
+from workflows.schemas.output_schemas import ValuePropositionsOutput
+from workflows.prompts.prompt_templates import get_few_shot_value_proposition_prompt
 
 class ValuePropositionAgent:
     """Agent that generates value propositions."""
@@ -14,10 +18,16 @@ class ValuePropositionAgent:
         self._initialize()
     
     def _initialize(self):
-        """Initialize the LLM."""
+        """Initialize the LLM with intelligent routing."""
         try:
-            self.llm = get_llm(provider=settings.LLM_PROVIDER, temperature=0.2)
-            print(f"✓ Value Proposition Agent initialized with {settings.LLM_PROVIDER}")
+            # Use Claude for creative tasks
+            self.llm = get_llm(
+                provider=None,  # Auto-select
+                temperature=0.2,
+                task_type=TaskType.CREATIVE,  # Value props require creativity
+                prefer_provider=settings.LLM_PROVIDER if settings.LLM_PROVIDER in ["claude", "openai"] else None
+            )
+            print(f"✓ Value Proposition Agent initialized with intelligent routing")
         except Exception as e:
             print(f"Error initializing Value Proposition Agent: {e}")
     
@@ -49,14 +59,23 @@ class ValuePropositionAgent:
                 for ch in challenges
             ])
         
+        # Set up structured output parser
+        output_parser = PydanticOutputParser(pydantic_object=ValuePropositionsOutput)
+        format_instructions = output_parser.get_format_instructions()
+        system_prompt = get_few_shot_value_proposition_prompt()
+        
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert at crafting compelling value propositions for presales.
-Create value propositions that directly address client challenges and demonstrate clear business value.
+            ("system", f"""{system_prompt}
+
 Each value proposition should be:
 - Specific and measurable
 - Aligned with client challenges
 - Focused on business outcomes
-- Quantifiable where possible"""),
+- Quantifiable where possible (e.g., "45% reduction in operational costs")
+
+Generate 5-8 value propositions.
+
+{format_instructions}"""),
             ("user", """Based on these challenges, create value propositions:
 
 Challenges:
@@ -65,35 +84,25 @@ Challenges:
 RFP Context:
 {rfp_summary}
 
-Generate value propositions in JSON format:
-{{
-    "value_propositions": [
-        "Value prop 1 (e.g., 45% reduction in operational costs)",
-        "Value prop 2 (e.g., 99.9% uptime SLA)",
-        ...
-    ]
-}}""")
+Provide value propositions in the specified JSON format.""")
         ])
         
         try:
-            chain = prompt | self.llm
+            chain = prompt | self.llm | output_parser
             response = chain.invoke({
                 "challenges": challenges_text or "No challenges identified",
-                "rfp_summary": rfp_summary or "No summary available"
+                "rfp_summary": rfp_summary or "No summary available",
+                "format_instructions": format_instructions
             })
             
-            # Parse JSON response
-            import json
-            import re
-            
-            content = response.content
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            
-            if json_match:
-                result = json.loads(json_match.group())
-                value_props = result.get("value_propositions", [])
+            # Response is already parsed as Pydantic model
+            if isinstance(response, ValuePropositionsOutput):
+                value_props = response.value_propositions
+            elif isinstance(response, dict):
+                value_props = response.get("value_propositions", [])
             else:
                 # Fallback: extract from text
+                content = str(response)
                 lines = [line.strip() for line in content.split('\n') if line.strip()]
                 value_props = lines[:5]  # Take first 5 lines
             

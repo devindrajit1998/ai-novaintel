@@ -43,13 +43,13 @@ export default function ForgotPassword() {
   if (emailSent) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-hero px-4">
-        <Card className="w-full max-w-md border-border/40 bg-gradient-card p-8 shadow-glass backdrop-blur-sm">
+        <Card className="w-full max-w-md border-border/40 bg-card/80 backdrop-blur-sm shadow-xl p-6 sm:p-8">
           <div className="text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <Mail className="h-8 w-8 text-primary" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-green-500/10 to-green-500/5">
+              <Mail className="h-7 w-7 text-green-600" />
             </div>
-            <h1 className="mb-2 font-heading text-3xl font-bold">Check Your Email</h1>
-            <p className="mb-6 text-muted-foreground">
+            <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold">Check Your Email</h1>
+            <p className="mb-6 text-sm sm:text-base text-muted-foreground">
               We've sent a password reset link to <strong>{email}</strong>. 
               Please check your email and follow the instructions to reset your password.
             </p>
@@ -67,10 +67,13 @@ export default function ForgotPassword() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-hero px-4">
-      <Card className="w-full max-w-md border-border/40 bg-gradient-card p-8 shadow-glass backdrop-blur-sm">
-        <div className="mb-6">
-          <h1 className="mb-2 font-heading text-3xl font-bold">Forgot Password?</h1>
-          <p className="text-muted-foreground">
+      <Card className="w-full max-w-md border-border/40 bg-card/80 backdrop-blur-sm shadow-xl p-6 sm:p-8">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-primary shadow-lg">
+            <Mail className="h-7 w-7 text-primary-foreground" />
+          </div>
+          <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold">Forgot Password?</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Enter your email address and we'll send you a link to reset your password.
           </p>
         </div>
@@ -92,7 +95,8 @@ export default function ForgotPassword() {
 
           <Button 
             type="submit" 
-            className="w-full bg-gradient-primary shadow-md" 
+            variant="gradient"
+            className="w-full shadow-md hover:shadow-lg" 
             disabled={isLoading}
           >
             {isLoading ? "Sending..." : "Send Reset Link"}

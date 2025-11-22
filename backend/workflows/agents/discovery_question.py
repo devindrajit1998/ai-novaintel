@@ -3,8 +3,12 @@ Discovery Question Agent - Generates categorized discovery questions.
 """
 from typing import Dict, Any, List
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
 from utils.config import settings
 from utils.llm_factory import get_llm
+from utils.model_router import TaskType
+from workflows.schemas.output_schemas import DiscoveryQuestionsOutput
+from workflows.prompts.prompt_templates import get_few_shot_discovery_question_prompt
 
 class DiscoveryQuestionAgent:
     """Agent that generates discovery questions."""
@@ -15,10 +19,16 @@ class DiscoveryQuestionAgent:
         self._initialize()
     
     def _initialize(self):
-        """Initialize the LLM."""
+        """Initialize the LLM with intelligent routing."""
         try:
-            self.llm = get_llm(provider=settings.LLM_PROVIDER, temperature=0.3)
-            print(f"✓ Discovery Question Agent initialized with {settings.LLM_PROVIDER}")
+            # Use Gemini Flash for fast generation (questions are straightforward)
+            self.llm = get_llm(
+                provider=None,  # Auto-select
+                temperature=0.3,
+                task_type=TaskType.FAST_GENERATION,  # Fast generation
+                prefer_provider=settings.LLM_PROVIDER
+            )
+            print(f"✓ Discovery Question Agent initialized with intelligent routing")
         except Exception as e:
             print(f"Error initializing Discovery Question Agent: {e}")
     
@@ -48,50 +58,58 @@ class DiscoveryQuestionAgent:
                 for ch in challenges
             ])
         
+        # Set up structured output parser
+        output_parser = PydanticOutputParser(pydantic_object=DiscoveryQuestionsOutput)
+        format_instructions = output_parser.get_format_instructions()
+        system_prompt = get_few_shot_discovery_question_prompt()
+        
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert at creating discovery questions for presales engagements.
-Generate thoughtful, probing questions that help understand client needs, pain points, and requirements.
-Organize questions by category: Business, Technology, KPIs, Compliance."""),
+            ("system", f"""{system_prompt}
+
+Organize questions by category: Business, Technology, KPIs, Compliance, and Other.
+Generate 3-5 questions per category.
+
+{format_instructions}"""),
             ("user", """Based on these challenges, generate discovery questions:
 
 Challenges:
 {challenges}
 
-Generate 3-5 questions per category. Provide in JSON format:
-{{
-    "Business": ["question1", "question2", ...],
-    "Technology": ["question1", "question2", ...],
-    "KPIs": ["question1", "question2", ...],
-    "Compliance": ["question1", "question2", ...]
-}}""")
+Provide questions in the specified JSON format.""")
         ])
         
         try:
-            chain = prompt | self.llm
+            chain = prompt | self.llm | output_parser
             response = chain.invoke({
-                "challenges": challenges_text or "No challenges identified"
+                "challenges": challenges_text or "No challenges identified",
+                "format_instructions": format_instructions
             })
             
-            # Parse JSON response
-            import json
-            import re
-            
-            content = response.content
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            
-            if json_match:
-                result = json.loads(json_match.group())
+            # Response is already parsed as Pydantic model
+            if isinstance(response, DiscoveryQuestionsOutput):
                 questions = {
-                    cat: result.get(cat, [])
-                    for cat in self.categories
+                    "Business": response.business_questions,
+                    "Technology": response.technical_questions,
+                    "KPIs": response.kpi_questions,
+                    "Compliance": response.compliance_questions,
+                    "Other": response.other_questions
+                }
+            elif isinstance(response, dict):
+                questions = {
+                    "Business": response.get("business_questions", []),
+                    "Technology": response.get("technical_questions", []),
+                    "KPIs": response.get("kpi_questions", []),
+                    "Compliance": response.get("compliance_questions", []),
+                    "Other": response.get("other_questions", [])
                 }
             else:
-                # Fallback: create default questions
+                # Fallback
                 questions = {
                     "Business": ["What are your primary business objectives?"],
                     "Technology": ["What is your current technology stack?"],
                     "KPIs": ["What metrics do you track?"],
-                    "Compliance": ["What compliance requirements must be met?"]
+                    "Compliance": ["What compliance requirements must be met?"],
+                    "Other": []
                 }
             
             return {

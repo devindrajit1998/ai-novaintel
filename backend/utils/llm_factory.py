@@ -1,10 +1,14 @@
 """
 LLM Factory - Create LLM instances for different providers.
+Supports Gemini, OpenAI, and Claude with intelligent routing.
 """
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 from langchain_core.runnables import Runnable
 from utils.config import settings
 from utils.gemini_service import gemini_service
+from utils.model_router import model_router, TaskType
+from utils.langsmith_monitor import langsmith_monitor
+import sys
 
 # LangChain compatible wrapper for Gemini
 class GeminiLangChainWrapper(Runnable):
@@ -136,18 +140,87 @@ class GeminiResponse:
     def __str__(self):
         return self.content if self.content else ""
 
-def get_llm(provider: Optional[str] = None, temperature: float = 0.1, model: Optional[str] = None):
+def get_llm(
+    provider: Optional[str] = None,
+    temperature: float = 0.1,
+    model: Optional[str] = None,
+    task_type: Optional[TaskType] = None,
+    prefer_provider: Optional[Literal["gemini", "openai", "claude"]] = None
+):
     """
-    Get LLM instance - Gemini only.
+    Get LLM instance - Supports Gemini, OpenAI, and Claude with intelligent routing.
     
     Args:
-        provider: LLM provider (defaults to "gemini")
+        provider: LLM provider ("gemini", "openai", "claude", or None for auto-routing)
         temperature: Temperature for generation
-        model: Model name (optional, not used for Gemini)
+        model: Model name (optional)
+        task_type: Task type for intelligent routing
+        prefer_provider: Preferred provider if available
     
     Returns:
         LLM instance compatible with LangChain
     """
-    # Always use Gemini
-    return GeminiLangChainWrapper(temperature=temperature)
+    # Auto-select provider if not specified
+    if not provider:
+        if task_type:
+            provider = model_router.select_model(task_type, prefer_provider)
+        else:
+            # Default to Gemini or use preferred
+            provider = prefer_provider or "gemini"
+    
+    # Get specific model name
+    model_name = model or model_router.get_model_name(provider, task_type)
+    
+    # Set LangSmith monitoring metadata if enabled
+    if langsmith_monitor.is_enabled():
+        langsmith_monitor.set_run_name(f"{provider}:{model_name}")
+        langsmith_monitor.set_tags([provider, model_name, task_type.value if task_type else "default"])
+        langsmith_monitor.set_metadata({
+            "provider": provider,
+            "model": model_name,
+            "temperature": temperature,
+            "task_type": task_type.value if task_type else None
+        })
+    
+    # Create appropriate wrapper
+    if provider == "gemini":
+        return GeminiLangChainWrapper(temperature=temperature)
+    elif provider == "openai":
+        try:
+            from langchain_openai import ChatOpenAI
+            llm = ChatOpenAI(
+                model=model_name,
+                temperature=temperature,
+                api_key=settings.OPENAI_API_KEY,
+                # LangSmith automatically tracks if enabled
+            )
+            # Tag for LangSmith
+            if langsmith_monitor.is_enabled():
+                llm.tags = ["openai", model_name]
+            return llm
+        except ImportError:
+            print("[WARNING] langchain-openai not installed. Install with: pip install langchain-openai", file=sys.stderr, flush=True)
+            print("[FALLBACK] Using Gemini instead", file=sys.stderr, flush=True)
+            return GeminiLangChainWrapper(temperature=temperature)
+    elif provider == "claude":
+        try:
+            from langchain_anthropic import ChatAnthropic
+            llm = ChatAnthropic(
+                model=model_name,
+                temperature=temperature,
+                api_key=settings.ANTHROPIC_API_KEY,
+                # LangSmith automatically tracks if enabled
+            )
+            # Tag for LangSmith
+            if langsmith_monitor.is_enabled():
+                llm.tags = ["anthropic", model_name]
+            return llm
+        except ImportError:
+            print("[WARNING] langchain-anthropic not installed. Install with: pip install langchain-anthropic", file=sys.stderr, flush=True)
+            print("[FALLBACK] Using Gemini instead", file=sys.stderr, flush=True)
+            return GeminiLangChainWrapper(temperature=temperature)
+    else:
+        # Unknown provider, default to Gemini
+        print(f"[WARNING] Unknown provider '{provider}', using Gemini instead", file=sys.stderr, flush=True)
+        return GeminiLangChainWrapper(temperature=temperature)
 

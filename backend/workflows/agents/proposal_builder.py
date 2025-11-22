@@ -3,8 +3,13 @@ Proposal Builder Agent - Drafts complete proposal sections.
 """
 from typing import Dict, Any, List
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
 from utils.config import settings
 from utils.llm_factory import get_llm
+from utils.model_router import TaskType
+from workflows.schemas.output_schemas import ProposalDraftOutput
+from workflows.prompts.prompt_templates import get_few_shot_proposal_builder_prompt
+from workflows.agents.proposal_refiner import proposal_refiner_agent
 
 class ProposalBuilderAgent:
     """Agent that builds proposal drafts."""
@@ -14,11 +19,17 @@ class ProposalBuilderAgent:
         self._initialize()
     
     def _initialize(self):
-        """Initialize the LLM."""
+        """Initialize the LLM with intelligent routing."""
         try:
-            self.llm = get_llm(provider=settings.LLM_PROVIDER, temperature=0.2)
+            # Use GPT-4o or Claude for high-quality proposal generation
+            self.llm = get_llm(
+                provider=None,  # Auto-select
+                temperature=0.2,
+                task_type=TaskType.HIGH_QUALITY,  # High-quality output
+                prefer_provider=settings.LLM_PROVIDER if settings.LLM_PROVIDER in ["openai", "claude"] else None
+            )
             if self.llm:
-                print(f"✓ Proposal Builder Agent initialized with {settings.LLM_PROVIDER}")
+                print(f"✓ Proposal Builder Agent initialized with intelligent routing")
             else:
                 print(f"⚠ Proposal Builder Agent: LLM not available")
         except Exception as e:
@@ -32,7 +43,9 @@ class ProposalBuilderAgent:
         rfp_summary: str,
         challenges: List[Dict[str, Any]],
         value_propositions: List[str],
-        case_studies: List[Dict[str, Any]] = None
+        case_studies: List[Dict[str, Any]] = None,
+        use_refinement: bool = True,
+        max_refinement_iterations: int = 2
     ) -> Dict[str, Any]:
         """
         Build proposal draft with all sections.
@@ -68,16 +81,23 @@ class ProposalBuilderAgent:
                 for cs in case_studies
             ])
         
+        # Set up structured output parser
+        output_parser = PydanticOutputParser(pydantic_object=ProposalDraftOutput)
+        format_instructions = output_parser.get_format_instructions()
+        system_prompt = get_few_shot_proposal_builder_prompt()
+        
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert proposal writer. Create a comprehensive proposal draft with:
-1. Executive Summary
-2. Understanding Client Challenges
-3. Proposed Solution
-4. Benefits & Value Propositions
-5. Case Studies & Success Stories
-6. Implementation Approach
+            ("system", f"""{system_prompt}
 
-Write professionally, clearly, and focus on client value."""),
+Create a comprehensive proposal draft with:
+1. Executive Summary (2-3 paragraphs)
+2. Understanding Client Challenges (show you understand their pain points)
+3. Proposed Solution (detailed solution approach)
+4. Benefits & Value Propositions (clear business value)
+5. Case Studies & Success Stories (relevant examples)
+6. Implementation Approach (how you will deliver)
+
+{format_instructions}"""),
             ("user", """Create a proposal draft based on:
 
 RFP Summary:
@@ -92,15 +112,7 @@ Value Propositions:
 Relevant Case Studies:
 {case_studies}
 
-Provide proposal in JSON format:
-{{
-    "executive_summary": "Executive summary text",
-    "client_challenges": "Section on understanding challenges",
-    "proposed_solution": "Our solution approach",
-    "benefits_value": "Benefits and value propositions",
-    "case_studies": "Case studies section",
-    "implementation_approach": "How we will implement"
-}}""")
+Provide proposal in the specified JSON format.""")
         ])
         
         try:
@@ -112,12 +124,13 @@ Provide proposal in JSON format:
                     "error": "Gemini API key not configured"
                 }
             
-            chain = prompt | self.llm
+            chain = prompt | self.llm | output_parser
             response = chain.invoke({
                 "rfp_summary": rfp_summary or "No summary available",
                 "challenges": challenges_text or "No challenges identified",
                 "value_propositions": value_props_text,
-                "case_studies": case_studies_text or "No case studies available"
+                "case_studies": case_studies_text or "No case studies available",
+                "format_instructions": format_instructions
             })
             
             # Check for errors in response
@@ -127,44 +140,14 @@ Provide proposal in JSON format:
                     "error": response.error
                 }
             
-            # Parse JSON response
-            import json
-            import re
-            
-            # Get content from response
-            if hasattr(response, 'content'):
-                content = response.content
-            elif isinstance(response, str):
-                content = response
+            # Response is already parsed as Pydantic model
+            if isinstance(response, ProposalDraftOutput):
+                proposal_draft = response.model_dump()
+            elif isinstance(response, dict):
+                proposal_draft = response
             else:
+                # Fallback
                 content = str(response)
-            
-            if not content:
-                return {
-                    "proposal_draft": None,
-                    "error": "Empty response from LLM"
-                }
-            
-            # Try to extract JSON from response
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            
-            if json_match:
-                try:
-                    result = json.loads(json_match.group())
-                    proposal_draft = result
-                except json.JSONDecodeError as e:
-                    # JSON parsing failed, use fallback
-                    print(f"⚠ Failed to parse JSON from proposal response: {e}")
-                    proposal_draft = {
-                        "executive_summary": content[:500] if content else "Executive summary",
-                        "client_challenges": "Client challenges section",
-                        "proposed_solution": "Proposed solution",
-                        "benefits_value": value_props_text,
-                        "case_studies": case_studies_text or "Case studies",
-                        "implementation_approach": "Implementation approach"
-                    }
-            else:
-                # No JSON found, create structure from content
                 proposal_draft = {
                     "executive_summary": content[:500] if content else "Executive summary",
                     "client_challenges": challenges_text or "Client challenges section",
@@ -174,8 +157,70 @@ Provide proposal in JSON format:
                     "implementation_approach": "Implementation approach"
                 }
             
+            # Apply refinement if enabled
+            refinement_results = None
+            if use_refinement and proposal_draft:
+                print(f"  [Proposal Builder] Starting refinement (max {max_refinement_iterations} iterations)...")
+                try:
+                    # Review proposal
+                    review_results = proposal_refiner_agent.review_proposal(
+                        proposal_draft=proposal_draft,
+                        rfp_summary=rfp_summary or "No summary available",
+                        challenges=challenges or []
+                    )
+                    
+                    initial_score = review_results.get("overall_score", 70.0)
+                    print(f"  [Proposal Builder] Initial quality score: {initial_score:.1f}/100")
+                    
+                    # Refine if score is below threshold
+                    if initial_score < 85.0 and max_refinement_iterations > 0:
+                        refined_draft = proposal_draft
+                        for iteration in range(max_refinement_iterations):
+                            print(f"  [Proposal Builder] Refinement iteration {iteration + 1}/{max_refinement_iterations}...")
+                            
+                            refined_draft = proposal_refiner_agent.refine_proposal(
+                                proposal_draft=refined_draft,
+                                review_results=review_results,
+                                rfp_summary=rfp_summary or "No summary available",
+                                max_iterations=1
+                            )
+                            
+                            # Review refined draft
+                            review_results = proposal_refiner_agent.review_proposal(
+                                proposal_draft=refined_draft,
+                                rfp_summary=rfp_summary or "No summary available",
+                                challenges=challenges or []
+                            )
+                            
+                            refined_score = review_results.get("overall_score", 70.0)
+                            print(f"  [Proposal Builder] Refined quality score: {refined_score:.1f}/100")
+                            
+                            # Stop if score is good enough or not improving
+                            if refined_score >= 85.0 or refined_score <= initial_score:
+                                break
+                            
+                            initial_score = refined_score
+                        
+                        proposal_draft = refined_draft
+                        refinement_results = {
+                            "initial_score": review_results.get("overall_score", 70.0),
+                            "final_score": review_results.get("overall_score", 70.0),
+                            "iterations": iteration + 1 if 'iteration' in locals() else 0
+                        }
+                    else:
+                        refinement_results = {
+                            "initial_score": initial_score,
+                            "final_score": initial_score,
+                            "iterations": 0,
+                            "message": "Quality score already acceptable"
+                        }
+                except Exception as e:
+                    print(f"  [WARNING] Refinement failed: {e}")
+                    refinement_results = {"error": str(e)}
+            
             return {
                 "proposal_draft": proposal_draft,
+                "refinement_results": refinement_results,
                 "error": None
             }
         

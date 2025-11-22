@@ -391,64 +391,76 @@ export default function ProposalBuilder() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 sm:space-y-8">
         {/* Header */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-8 border border-border/40">
-          <div className="relative z-10 flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="font-heading text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">Proposal Builder</h1>
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8 border border-border/40">
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  Proposal Builder
+                </h1>
                 {project && (
-                  <Badge variant="outline" className="text-lg px-3 py-1">{project.client_name}</Badge>
+                  <Badge variant="outline" className="text-xs sm:text-sm px-2 sm:px-3 py-1">
+                    {project.client_name}
+                  </Badge>
                 )}
                 {proposal?.status && getStatusBadge(proposal.status)}
               </div>
-              <p className="text-muted-foreground text-lg">
+              <p className="text-sm sm:text-base lg:text-lg text-muted-foreground">
                 {proposal ? "Edit your proposal" : "Create a winning proposal with AI-powered content"}
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {lastSaved && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-background/50 px-3 py-2 rounded-lg border border-border/40">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  Saved {lastSaved.toLocaleTimeString()}
+                <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground bg-background/50 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-border/40">
+                  <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
+                  <span className="hidden sm:inline">Saved </span>
+                  {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               )}
               {proposal && insights && (
                 <Button 
                   variant="outline" 
+                  size="sm"
+                  className="text-xs sm:text-sm"
                   onClick={() => handleGenerate(true)}
                   disabled={isGenerating}
                 >
                   {isGenerating ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
                   ) : (
-                    <Sparkles className="mr-2 h-4 w-4" />
+                    <Sparkles className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                   )}
-                  Regenerate All
+                  <span className="hidden sm:inline">Regenerate All</span>
+                  <span className="sm:hidden">Regenerate</span>
                 </Button>
               )}
               <Button 
                 variant="outline" 
+                size="sm"
+                className="text-xs sm:text-sm"
                 onClick={handleSave}
                 disabled={isSaving || sections.length === 0}
               >
                 {isSaving ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
                 ) : (
-                  <Save className="mr-2 h-4 w-4" />
+                  <Save className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                 )}
                 Save
               </Button>
               <Button 
                 onClick={() => setPreviewMode(!previewMode)}
                 variant={previewMode ? "default" : "outline"}
+                size="sm"
+                className="text-xs sm:text-sm"
               >
-                <Eye className="mr-2 h-4 w-4" />
+                <Eye className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                 {previewMode ? "Edit" : "Preview"}
               </Button>
               <Select value={templateType} onValueChange={setTemplateType}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px] text-xs sm:text-sm h-8 sm:h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -526,7 +538,7 @@ export default function ProposalBuilder() {
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-6">
             {/* Title Input */}
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
               <Label htmlFor="proposal-title" className="mb-2 block font-semibold">
                 Proposal Title
               </Label>
@@ -540,7 +552,7 @@ export default function ProposalBuilder() {
             </Card>
 
             {/* Sections */}
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
               <div className="mb-6 flex items-center justify-between">
                 <h2 className="font-heading text-xl font-semibold">Proposal Sections</h2>
                 <Button size="sm" variant="outline" onClick={handleAddSection}>
@@ -749,7 +761,7 @@ export default function ProposalBuilder() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Template Info */}
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
               <h3 className="mb-4 font-heading text-lg font-semibold">Template</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -772,7 +784,7 @@ export default function ProposalBuilder() {
             </Card>
 
             {/* Export Options */}
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
               <h3 className="mb-4 font-heading text-lg font-semibold">Export</h3>
               <div className="space-y-3">
                 <Button
@@ -815,7 +827,7 @@ export default function ProposalBuilder() {
             </Card>
 
             {/* Approval & Case Study Actions */}
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
               <h3 className="mb-4 font-heading text-lg font-semibold">Actions</h3>
               <div className="space-y-3">
                 {proposal?.id && proposal?.status !== "pending_approval" && proposal?.status !== "approved" && user?.role !== "pre_sales_manager" && (
@@ -869,7 +881,7 @@ export default function ProposalBuilder() {
 
             {/* Quick Actions */}
             {insights && (
-              <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+              <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
                 <h3 className="mb-4 font-heading text-lg font-semibold">AI Insights</h3>
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <p>✓ RFP Analysis Complete</p>

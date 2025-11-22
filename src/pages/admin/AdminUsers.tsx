@@ -129,74 +129,95 @@ export default function AdminUsers() {
 
     return (
         <DashboardLayout>
-            <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold">User Management</h1>
-                        <p className="text-muted-foreground">Manage users, roles, and permissions</p>
+            <div className="space-y-6 sm:space-y-8">
+                {/* Header */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8 border border-border/40">
+                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                                User Management
+                            </h1>
+                            <p className="text-sm sm:text-base text-muted-foreground">Manage users, roles, and permissions</p>
+                        </div>
+                        <div className="relative w-full sm:w-auto">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search users..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 w-full sm:w-64 bg-background/50"
+                            />
+                        </div>
                     </div>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search users..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 w-64"
-                        />
-                    </div>
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid gap-4 md:grid-cols-5">
-                    <Card className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Total Users</p>
-                                <p className="text-2xl font-bold">{userStats.total}</p>
+                <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-5">
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Users</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{userStats.total}</p>
                             </div>
-                            <Users className="h-8 w-8 text-blue-500" />
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-blue-500/10 to-blue-500/5 p-2 text-blue-600">
+                                <Users className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
                         </div>
                     </Card>
-                    <Card className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Active</p>
-                                <p className="text-2xl font-bold">{userStats.active}</p>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Active</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{userStats.active}</p>
                             </div>
-                            <CheckCircle className="h-8 w-8 text-green-500" />
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-green-500/10 to-green-500/5 p-2 text-green-600">
+                                <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
                         </div>
                     </Card>
-                    <Card className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Managers</p>
-                                <p className="text-2xl font-bold">{userStats.managers}</p>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Managers</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{userStats.managers}</p>
                             </div>
-                            <Shield className="h-8 w-8 text-purple-500" />
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-purple-500/10 to-purple-500/5 p-2 text-purple-600">
+                                <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
                         </div>
                     </Card>
-                    <Card className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Analysts</p>
-                                <p className="text-2xl font-bold">{userStats.analysts}</p>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                        <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Analysts</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{userStats.analysts}</p>
                             </div>
-                            <Users className="h-8 w-8 text-orange-500" />
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-orange-500/10 to-orange-500/5 p-2 text-orange-600">
+                                <Users className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
                         </div>
                     </Card>
-                    <Card className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Verified</p>
-                                <p className="text-2xl font-bold">{userStats.verified}</p>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1 col-span-2 md:col-span-1">
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Verified</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{userStats.verified}</p>
                             </div>
-                            <Mail className="h-8 w-8 text-indigo-500" />
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-indigo-500/10 to-indigo-500/5 p-2 text-indigo-600">
+                                <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
                         </div>
                     </Card>
                 </div>
 
                 {/* Users Table */}
-                <Card>
+                <Card className="border-border/40 bg-card/80 backdrop-blur-sm shadow-sm">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-12">
                             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

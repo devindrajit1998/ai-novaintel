@@ -187,19 +187,24 @@ export default function Settings() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-8 border border-border/40">
+      <div className="space-y-6 sm:space-y-8">
+        {/* Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8 border border-border/40">
           <div className="relative z-10">
-            <h1 className="mb-2 font-heading text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">Settings</h1>
-            <p className="text-muted-foreground text-lg">Manage your account preferences and AI configurations</p>
+            <h1 className="mb-2 font-heading text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Settings
+            </h1>
+            <p className="text-sm sm:text-base lg:text-lg text-muted-foreground">
+              Manage your account preferences and AI configurations
+            </p>
           </div>
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             {/* Profile Settings */}
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
               <h2 className="mb-6 font-heading text-xl font-semibold">Profile Settings</h2>
               <div className="space-y-6">
                 <div className="grid gap-6 md:grid-cols-2">
@@ -238,8 +243,8 @@ export default function Settings() {
             </Card>
 
             {/* Company Information */}
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
-              <h2 className="mb-6 font-heading text-xl font-semibold">Company Information</h2>
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
+              <h2 className="mb-4 sm:mb-6 font-heading text-lg sm:text-xl font-semibold">Company Information</h2>
               <div className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="company_name">Company Name</Label>
@@ -318,8 +323,8 @@ export default function Settings() {
             </Card>
 
             {/* Preferences */}
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
-              <h2 className="mb-6 font-heading text-xl font-semibold">Preferences</h2>
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
+              <h2 className="mb-4 sm:mb-6 font-heading text-lg sm:text-xl font-semibold">Preferences</h2>
               <div className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="tone">Proposal Tone</Label>
@@ -346,8 +351,8 @@ export default function Settings() {
             </Card>
 
             {/* AI Settings */}
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
-              <h2 className="mb-6 font-heading text-xl font-semibold">AI Settings</h2>
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
+              <h2 className="mb-4 sm:mb-6 font-heading text-lg sm:text-xl font-semibold">AI Settings</h2>
               <div className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="response">AI Response Style</Label>
@@ -395,12 +400,13 @@ export default function Settings() {
 
           </div>
 
-          <div className="space-y-6">
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
-              <h3 className="mb-4 font-heading text-lg font-semibold">Actions</h3>
+          <div className="space-y-4 sm:space-y-6">
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
+              <h3 className="mb-4 font-heading text-base sm:text-lg font-semibold">Actions</h3>
               <div className="space-y-3">
                 <Button
-                  className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
+                  variant="gradient"
+                  className="w-full shadow-md hover:shadow-lg"
                   onClick={handleSaveChanges}
                   disabled={updateProfileMutation.isPending || updateSettingsMutation.isPending}
                 >

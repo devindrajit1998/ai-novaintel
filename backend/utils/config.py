@@ -12,24 +12,42 @@ class Settings(BaseSettings):
     # Database - Direct PostgreSQL
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/novaintel"
     
-    # Vector Database - Chroma
-    VECTOR_DB_TYPE: str = "chroma"  # "chroma" or "qdrant" or "pgvector"
+    # Vector Database Configuration
+    VECTOR_DB_TYPE: str = "chroma"  # "chroma", "qdrant", or "pinecone"
     CHROMA_PERSIST_DIR: str = "./chroma_db"  # Local Chroma storage
-    # OR for Qdrant:
-    # QDRANT_URL: str = "http://localhost:6333"
-    # QDRANT_API_KEY: str = ""
+    
+    # Qdrant Configuration
+    QDRANT_URL: str = "http://localhost:6333"  # Qdrant server URL
+    QDRANT_API_KEY: str = ""  # Optional API key for Qdrant Cloud
+    
+    # Pinecone Configuration
+    PINECONE_API_KEY: str = ""  # Pinecone API key
+    PINECONE_ENVIRONMENT: str = "us-east-1"  # Pinecone environment/region
+    PINECONE_INDEX_NAME: str = "novaintel-documents"  # Pinecone index name
     
     # LLM Provider - Gemini
     GEMINI_API_KEY: str = ""
     LLM_PROVIDER: str = "gemini"  # "gemini" or "openai"
     GEMINI_MODEL: str = "gemini-2.0-flash"
     
-    # Embedding Model
-    EMBEDDING_MODEL: str = "sentence-transformers/all-mpnet-base-v2"  # Better quality, 768d
+    # Embedding Model Configuration
+    EMBEDDING_PROVIDER: str = "openai"  # "openai" or "huggingface"
+    EMBEDDING_MODEL: str = "text-embedding-3-large"  # OpenAI model or HuggingFace model name
     
     # Legacy OpenAI (optional fallback)
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
+    COHERE_API_KEY: str = ""  # For reranking
+    SERPAPI_API_KEY: str = ""  # For web search (optional, DuckDuckGo is free)
+    GOOGLE_SEARCH_API_KEY: str = ""  # Google Custom Search API key
+    GOOGLE_SEARCH_ENGINE_ID: str = ""  # Google Custom Search Engine ID
+    WEB_SEARCH_PROVIDER: str = "duckduckgo"  # "duckduckgo", "serpapi", or "google"
+    
+    # LangSmith Monitoring (optional)
+    LANGCHAIN_API_KEY: str = ""  # LangSmith API key
+    LANGCHAIN_TRACING_V2: str = "false"  # Set to "true" to enable tracing
+    LANGCHAIN_ENDPOINT: str = "https://api.smith.langchain.com"  # LangSmith endpoint
+    LANGCHAIN_PROJECT: str = "novaintel"  # LangSmith project name
     
     # File Upload - Local Storage
     UPLOAD_DIR: str = "./uploads"

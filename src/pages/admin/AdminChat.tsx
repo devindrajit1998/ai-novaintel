@@ -314,59 +314,77 @@ export default function AdminChat() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Admin Chat Management</h1>
-            <p className="text-muted-foreground">Monitor and manage all conversations across the system</p>
+      <div className="space-y-6 sm:space-y-8">
+        {/* Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8 border border-border/40">
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                Admin Chat Management
+              </h1>
+              <p className="text-sm sm:text-base text-muted-foreground">Monitor and manage all conversations across the system</p>
+            </div>
+            <Button onClick={() => setNewChatDialogOpen(true)} size="sm" className="w-full sm:w-auto">
+              <Plus className="h-4 w-4 mr-2" />
+              New Conversation
+            </Button>
           </div>
-          <Button onClick={() => setNewChatDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Conversation
-          </Button>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
         </div>
 
         {/* Admin Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Conversations</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4">
+          <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Conversations</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground">{stats.total}</p>
               </div>
-              <MessageCircle className="h-8 w-8 text-blue-500" />
+              <div className="ml-2 rounded-lg bg-gradient-to-br from-blue-500/10 to-blue-500/5 p-2 text-blue-600">
+                <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+              </div>
             </div>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Unread</p>
-                <p className="text-2xl font-bold">{stats.unread}</p>
+          <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+            <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Unread</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground">{stats.unread}</p>
               </div>
-              <TrendingUp className="h-8 w-8 text-orange-500" />
+              <div className="ml-2 rounded-lg bg-gradient-to-br from-orange-500/10 to-orange-500/5 p-2 text-orange-600">
+                <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
+              </div>
             </div>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Group Chats</p>
-                <p className="text-2xl font-bold">{stats.group}</p>
+          <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Group Chats</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground">{stats.group}</p>
               </div>
-              <Users className="h-8 w-8 text-green-500" />
+              <div className="ml-2 rounded-lg bg-gradient-to-br from-green-500/10 to-green-500/5 p-2 text-green-600">
+                <Users className="h-5 w-5 sm:h-6 sm:w-6" />
+              </div>
             </div>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Direct Messages</p>
-                <p className="text-2xl font-bold">{stats.direct}</p>
+          <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Direct Messages</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground">{stats.direct}</p>
               </div>
-              <Shield className="h-8 w-8 text-purple-500" />
+              <div className="ml-2 rounded-lg bg-gradient-to-br from-purple-500/10 to-purple-500/5 p-2 text-purple-600">
+                <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
+              </div>
             </div>
           </Card>
         </div>
 
-        <div className="flex h-[calc(100vh-20rem)] gap-4">
+        <div className="flex h-[calc(100vh-280px)] sm:h-[calc(100vh-320px)] gap-4">
           {/* Conversations List */}
           <Card className="w-96 flex flex-col">
             <div className="p-4 border-b space-y-4">
@@ -489,22 +507,22 @@ export default function AdminChat() {
                         return (
                           <div
                             key={message.id}
-                            className={`flex mb-4 ${isOwn ? "justify-end" : "justify-start"}`}
+                            className={`flex mb-4 ${isOwn ? "justify-end" : "justify-start"} animate-fade-in`}
                           >
                             <div
-                              className={`max-w-[70%] rounded-lg p-3 ${
+                              className={`max-w-[70%] sm:max-w-[75%] rounded-lg p-3 shadow-sm transition-all duration-200 hover:shadow-md ${
                                 isOwn
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-muted"
+                                  ? "bg-primary text-primary-foreground rounded-br-sm"
+                                  : "bg-muted rounded-bl-sm"
                               }`}
                             >
                               {!isOwn && (
-                                <p className="text-xs font-medium mb-1 opacity-70">
+                                <p className="text-xs font-medium mb-1 opacity-80">
                                   {message.sender_name}
                                 </p>
                               )}
-                              <p className="text-sm">{message.content}</p>
-                              <p className="text-xs mt-1 opacity-70">
+                              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{message.content}</p>
+                              <p className="text-xs mt-1.5 opacity-70">
                                 {format(new Date(message.created_at), "HH:mm")}
                               </p>
                             </div>

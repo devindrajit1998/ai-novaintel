@@ -370,29 +370,36 @@ export default function Insights() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="mb-2 font-heading text-3xl font-bold">AI Insights</h1>
-            <p className="text-muted-foreground">Project ID: {projectId}</p>
+      <div className="space-y-6 sm:space-y-8">
+        {/* Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8 border border-border/40">
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                AI Insights
+              </h1>
+              <p className="text-sm sm:text-base text-muted-foreground">Project ID: {projectId}</p>
+            </div>
+            <div className="flex gap-3">
+              <Button 
+                variant="gradient"
+                className="shadow-md hover:shadow-lg" 
+                onClick={() => {
+                  const selectedIds = Array.from(selectedCaseStudyIds);
+                  const params = new URLSearchParams();
+                  params.set('project_id', projectId.toString());
+                  if (selectedIds.length > 0) {
+                    params.set('selected_case_study_ids', selectedIds.join(','));
+                  }
+                  navigate(`/proposal?${params.toString()}`);
+                }}
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Generate Proposal
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-3">
-            <Button 
-              className="bg-gradient-primary" 
-              onClick={() => {
-                const selectedIds = Array.from(selectedCaseStudyIds);
-                const params = new URLSearchParams();
-                params.set('project_id', projectId.toString());
-                if (selectedIds.length > 0) {
-                  params.set('selected_case_study_ids', selectedIds.join(','));
-                }
-                navigate(`/proposal?${params.toString()}`);
-              }}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              Generate Proposal
-            </Button>
-          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
@@ -406,12 +413,12 @@ export default function Insights() {
               </TabsList>
 
               <TabsContent value="summary" className="mt-6">
-                <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+                <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
                   <div className="mb-6 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary/10 to-primary/5">
                       <Sparkles className="h-5 w-5 text-primary" />
                     </div>
-                    <h2 className="font-heading text-xl font-semibold">Executive Summary</h2>
+                    <h2 className="font-heading text-lg sm:text-xl font-semibold">Executive Summary</h2>
                   </div>
                   <div className="space-y-4">
                     {rfpSummary ? (
@@ -427,8 +434,8 @@ export default function Insights() {
                   </div>
                 </Card>
 
-                <Card className="mt-6 border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
-                  <h2 className="mb-6 font-heading text-xl font-semibold">Value Propositions</h2>
+                <Card className="mt-6 border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <h2 className="mb-6 font-heading text-lg sm:text-xl font-semibold">Value Propositions</h2>
                   <div className="space-y-4">
                     {valueProps.length > 0 ? (
                       valueProps.map((prop: any, index: number) => {
@@ -458,8 +465,8 @@ export default function Insights() {
               </TabsContent>
 
               <TabsContent value="challenges" className="mt-6">
-                <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
-                  <h2 className="mb-6 font-heading text-xl font-semibold">Business Challenges Identified</h2>
+                <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <h2 className="mb-6 font-heading text-lg sm:text-xl font-semibold">Business Challenges Identified</h2>
                   <div className="space-y-4">
                     {challenges.length > 0 ? (
                       challenges.map((challenge: any, index: number) => {
@@ -555,8 +562,8 @@ export default function Insights() {
               </TabsContent>
 
               <TabsContent value="questions" className="mt-6">
-                <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
-                  <h2 className="mb-6 font-heading text-xl font-semibold">Discovery Questions</h2>
+                <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <h2 className="mb-6 font-heading text-lg sm:text-xl font-semibold">Discovery Questions</h2>
                   {typeof discoveryQuestions === 'object' && Object.keys(discoveryQuestions).length > 0 ? (
                     <Accordion type="single" collapsible className="w-full">
                       {Object.entries(discoveryQuestions).map(([category, questions]: [string, any], index) => (

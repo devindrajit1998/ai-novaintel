@@ -3,9 +3,13 @@ RFP Analyzer Agent - Extracts summary, business context, objectives, and scope.
 """
 from typing import Dict, Any
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
 from utils.config import settings
 from utils.llm_factory import get_llm
+from utils.model_router import TaskType
 from rag.retriever import retriever
+from workflows.schemas.output_schemas import RFPAnalysisOutput
+from workflows.prompts.prompt_templates import get_few_shot_rfp_analyzer_prompt
 
 class RFPAnalyzerAgent:
     """Agent that analyzes RFP documents."""
@@ -15,10 +19,16 @@ class RFPAnalyzerAgent:
         self._initialize()
     
     def _initialize(self):
-        """Initialize the LLM."""
+        """Initialize the LLM with intelligent routing."""
         try:
-            self.llm = get_llm(provider=settings.LLM_PROVIDER, temperature=0.1)
-            print(f"✓ RFP Analyzer Agent initialized with {settings.LLM_PROVIDER}")
+            # Use Claude or GPT-4o for analysis tasks (better reasoning)
+            self.llm = get_llm(
+                provider=None,  # Auto-select
+                temperature=0.1,
+                task_type=TaskType.ANALYSIS,
+                prefer_provider=settings.LLM_PROVIDER if settings.LLM_PROVIDER in ["claude", "openai"] else None
+            )
+            print(f"✓ RFP Analyzer Agent initialized with intelligent routing")
         except Exception as e:
             print(f"Error initializing RFP Analyzer Agent: {e}")
     
@@ -63,15 +73,17 @@ class RFPAnalyzerAgent:
             except Exception as e:
                 print(f"Error retrieving context: {e}")
         
-        # Build prompt
+        # Set up structured output parser
+        output_parser = PydanticOutputParser(pydantic_object=RFPAnalysisOutput)
+        
+        # Build prompt with structured output instructions and few-shot examples
+        format_instructions = output_parser.get_format_instructions()
+        system_prompt = get_few_shot_rfp_analyzer_prompt()
+        
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert RFP analyst. Analyze the RFP document and extract:
-1. Executive Summary (2-3 paragraphs)
-2. Business Context Overview
-3. Key Business Objectives (list)
-4. Project Scope (detailed description)
+            ("system", f"""{system_prompt}
 
-Be concise, accurate, and focus on actionable insights."""),
+{format_instructions}"""),
             ("user", """Analyze the following RFP document:
 
 RFP Document:
@@ -79,13 +91,7 @@ RFP Document:
 
 {context_section}
 
-Provide your analysis in the following JSON format:
-{{
-    "rfp_summary": "Executive summary (2-3 paragraphs)",
-    "context_overview": "Business context and background",
-    "business_objectives": ["objective1", "objective2", ...],
-    "project_scope": "Detailed project scope description"
-}}""")
+Provide your analysis in the specified JSON format.""")
         ])
         
         context_section = ""
@@ -94,58 +100,41 @@ Provide your analysis in the following JSON format:
         
         try:
             print(f"    [RFP Analyzer] Invoking LLM with {len(rfp_text)} chars of RFP text...")
-            chain = prompt | self.llm
+            
+            # Create chain with structured output
+            chain = prompt | self.llm | output_parser
+            
             response = chain.invoke({
                 "rfp_text": rfp_text[:10000],  # Limit text length
-                "context_section": context_section
+                "context_section": context_section,
+                "format_instructions": format_instructions
             })
             
             print(f"    [RFP Analyzer] LLM response received: {type(response)}")
             
-            # Parse response (assuming JSON format)
-            if hasattr(response, 'content'):
-                content = response.content
-            elif hasattr(response, 'text'):
-                content = response.text
+            # Response is already parsed as Pydantic model
+            if isinstance(response, RFPAnalysisOutput):
+                result = response.model_dump()
+                print(f"    [RFP Analyzer] ✓ Successfully parsed structured response")
             else:
-                content = str(response)
-            
-            print(f"    [RFP Analyzer] Response content length: {len(content) if content else 0} chars")
-            print(f"    [RFP Analyzer] Response preview: {content[:200] if content else 'None'}...")
-            
-            # Try to extract JSON from response
-            import json
-            import re
-            
-            # Look for JSON in the response
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                try:
-                    result = json.loads(json_match.group())
-                    print(f"    [RFP Analyzer] ✓ Successfully parsed JSON response")
-                except json.JSONDecodeError as e:
-                    print(f"    [RFP Analyzer] ⚠️  JSON parse error: {e}, using fallback")
+                # Fallback: convert dict to model
+                if isinstance(response, dict):
+                    result = RFPAnalysisOutput(**response).model_dump()
+                else:
+                    # Last resort fallback
+                    content = str(response)
                     result = {
-                        "rfp_summary": content[:500] if content else None,
+                        "rfp_summary": content[:500] if content else "",
                         "context_overview": "Extracted from RFP",
                         "business_objectives": [],
                         "project_scope": content[500:1500] if len(content) > 500 else content
                     }
-            else:
-                print(f"    [RFP Analyzer] ⚠️  No JSON found in response, using fallback")
-                # Fallback: parse manually
-                result = {
-                    "rfp_summary": content[:500] if content else None,
-                    "context_overview": "Extracted from RFP",
-                    "business_objectives": [],
-                    "project_scope": content[500:1500] if len(content) > 500 else content
-                }
             
             final_result = {
-                "rfp_summary": result.get("rfp_summary"),
-                "context_overview": result.get("context_overview"),
+                "rfp_summary": result.get("rfp_summary", ""),
+                "context_overview": result.get("context_overview", ""),
                 "business_objectives": result.get("business_objectives", []),
-                "project_scope": result.get("project_scope"),
+                "project_scope": result.get("project_scope", ""),
                 "error": None
             }
             

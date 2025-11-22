@@ -85,13 +85,13 @@ export default function Register() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-hero px-4 py-12">
-      <Card className="w-full max-w-md border-border/40 bg-gradient-card p-8 shadow-glass backdrop-blur-sm">
+      <Card className="w-full max-w-md border-border/40 bg-card/80 backdrop-blur-sm shadow-xl p-6 sm:p-8">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-primary">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-primary shadow-lg">
             <span className="text-2xl font-bold text-primary-foreground">N</span>
           </div>
-          <h1 className="mb-2 font-heading text-3xl font-bold">Create Account</h1>
-          <p className="text-muted-foreground">Start your presales journey with NovaIntel</p>
+          <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold">Create Account</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Start your presales journey with NovaIntel</p>
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
@@ -178,7 +178,7 @@ export default function Register() {
             </p>
           </div>
 
-          <Button type="submit" className="w-full bg-gradient-primary shadow-md" disabled={isLoading}>
+          <Button type="submit" variant="gradient" className="w-full shadow-md hover:shadow-lg" disabled={isLoading}>
             {isLoading ? "Creating account..." : "Create Account"} <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </form>

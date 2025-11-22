@@ -272,7 +272,19 @@ export default function Chat() {
 
   return (
     <DashboardLayout>
-      <div className="flex h-[calc(100vh-8rem)] gap-4">
+      <div className="space-y-6 sm:space-y-8">
+        {/* Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8 border border-border/40">
+          <div className="relative z-10">
+            <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Messages
+            </h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Internal team communication</p>
+          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
+        </div>
+      </div>
+      <div className="flex h-[calc(100vh-240px)] sm:h-[calc(100vh-280px)] gap-4 mt-6">
         {/* Conversations List */}
         <Card className="w-80 flex flex-col">
           <div className="p-4 border-b flex items-center justify-between">
@@ -367,22 +379,22 @@ export default function Chat() {
                       return (
                         <div
                           key={message.id}
-                          className={`flex mb-4 ${isOwn ? "justify-end" : "justify-start"}`}
+                          className={`flex mb-4 ${isOwn ? "justify-end" : "justify-start"} animate-fade-in`}
                         >
                           <div
-                            className={`max-w-[70%] rounded-lg p-3 ${
+                            className={`max-w-[70%] sm:max-w-[75%] rounded-lg p-3 shadow-sm transition-all duration-200 hover:shadow-md ${
                               isOwn
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted"
+                                ? "bg-primary text-primary-foreground rounded-br-sm"
+                                : "bg-muted rounded-bl-sm"
                             }`}
                           >
                             {!isOwn && (
-                              <p className="text-xs font-medium mb-1 opacity-70">
+                              <p className="text-xs font-medium mb-1 opacity-80">
                                 {message.sender_name}
                               </p>
                             )}
-                            <p className="text-sm">{message.content}</p>
-                            <p className="text-xs mt-1 opacity-70">
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{message.content}</p>
+                            <p className="text-xs mt-1.5 opacity-70">
                               {format(new Date(message.created_at), "HH:mm")}
                             </p>
                           </div>

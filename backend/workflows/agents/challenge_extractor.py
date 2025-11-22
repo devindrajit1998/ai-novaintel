@@ -3,8 +3,12 @@ Challenge Extractor Agent - Generates business/technical challenges from RFP.
 """
 from typing import Dict, Any, List
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
 from utils.config import settings
 from utils.llm_factory import get_llm
+from utils.model_router import TaskType
+from workflows.schemas.output_schemas import ChallengesOutput
+from workflows.prompts.prompt_templates import get_few_shot_challenge_extractor_prompt
 
 class ChallengeExtractorAgent:
     """Agent that extracts challenges from RFP analysis."""
@@ -14,10 +18,16 @@ class ChallengeExtractorAgent:
         self._initialize()
     
     def _initialize(self):
-        """Initialize the LLM."""
+        """Initialize the LLM with intelligent routing."""
         try:
-            self.llm = get_llm(provider=settings.LLM_PROVIDER, temperature=0.2)
-            print(f"✓ Challenge Extractor Agent initialized with {settings.LLM_PROVIDER}")
+            # Use Claude for complex reasoning tasks
+            self.llm = get_llm(
+                provider=None,  # Auto-select
+                temperature=0.2,
+                task_type=TaskType.COMPLEX_REASONING,  # Challenge extraction requires reasoning
+                prefer_provider=settings.LLM_PROVIDER if settings.LLM_PROVIDER in ["claude", "openai"] else None
+            )
+            print(f"✓ Challenge Extractor Agent initialized with intelligent routing")
         except Exception as e:
             print(f"Error initializing Challenge Extractor Agent: {e}")
     
@@ -46,14 +56,21 @@ class ChallengeExtractorAgent:
         if business_objectives:
             objectives_text = "\n".join([f"- {obj}" for obj in business_objectives])
         
+        # Set up structured output parser
+        output_parser = PydanticOutputParser(pydantic_object=ChallengesOutput)
+        format_instructions = output_parser.get_format_instructions()
+        system_prompt = get_few_shot_challenge_extractor_prompt()
+        
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert at identifying business and technical challenges from RFP documents.
-Extract challenges that the client is facing or needs to address.
+            ("system", f"""{system_prompt}
+
 For each challenge, provide:
 - Challenge description
 - Type (Business/Technical/Compliance/Operational)
-- Impact/Importance
-- Potential solution direction"""),
+- Impact/Importance (High/Medium/Low)
+- Category (optional)
+
+{format_instructions}"""),
             ("user", """Based on the following RFP summary, identify the key challenges:
 
 RFP Summary:
@@ -62,49 +79,25 @@ RFP Summary:
 Business Objectives:
 {objectives}
 
-Provide challenges in JSON format:
-{{
-    "challenges": [
-        {{
-            "description": "Challenge description",
-            "type": "Business|Technical|Compliance|Operational",
-            "impact": "High|Medium|Low",
-            "category": "Specific category",
-            "solution_direction": "Brief solution hint"
-        }},
-        ...
-    ]
-}}""")
+Provide challenges in the specified JSON format.""")
         ])
         
         try:
-            chain = prompt | self.llm
+            chain = prompt | self.llm | output_parser
             response = chain.invoke({
                 "rfp_summary": rfp_summary or "No summary available",
-                "objectives": objectives_text or "No objectives specified"
+                "objectives": objectives_text or "No objectives specified",
+                "format_instructions": format_instructions
             })
             
-            # Parse JSON response
-            import json
-            import re
-            
-            content = response.content
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            
-            if json_match:
-                result = json.loads(json_match.group())
-                challenges = result.get("challenges", [])
+            # Response is already parsed as Pydantic model
+            if isinstance(response, ChallengesOutput):
+                challenges = [challenge.model_dump() for challenge in response.challenges]
+            elif isinstance(response, dict):
+                challenges = response.get("challenges", [])
             else:
-                # Fallback: create simple challenges from text
-                challenges = [
-                    {
-                        "description": content[:200],
-                        "type": "Business",
-                        "impact": "High",
-                        "category": "General",
-                        "solution_direction": "To be determined"
-                    }
-                ]
+                # Fallback
+                challenges = []
             
             return {
                 "challenges": challenges,

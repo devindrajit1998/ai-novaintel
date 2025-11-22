@@ -101,6 +101,14 @@ class CaseStudyTrainer:
                 document.processing_status = ProcessingStatus.COMPLETED.value
                 db.commit()
                 
+                # Add to knowledge graph
+                try:
+                    from services.knowledge_graph.graph_builder import knowledge_graph_builder
+                    knowledge_graph_builder.add_case_study_to_graph(case_study, db)
+                except Exception as e:
+                    print(f"[WARNING] Failed to add case study to knowledge graph: {e}")
+                    # Continue even if knowledge graph fails
+                
                 return {
                     "success": True,
                     "case_study_id": case_study.id,

@@ -235,23 +235,24 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat, index) => (
             <Card
               key={index}
-              className="group relative overflow-hidden border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm transition-all hover:-translate-y-2 hover:shadow-2xl hover:border-primary/30"
+              className="group relative overflow-hidden border-border/40 bg-card/50 backdrop-blur-sm p-6 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-1 hover:border-primary/30"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative flex items-start justify-between">
-                <div>
-                  <p className="mb-1 text-sm font-semibold text-muted-foreground uppercase tracking-wider">{stat.title}</p>
-                  <p className="mb-2 font-heading text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">{stat.value}</p>
-                  <p className="text-sm font-medium text-green-600 flex items-center gap-1">
-                    {stat.trend} from last month
+                <div className="flex-1 min-w-0">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.title}</p>
+                  <p className="mb-2 font-heading text-2xl sm:text-3xl font-bold text-foreground">{stat.value}</p>
+                  <p className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3" />
+                    {stat.trend}
                   </p>
                 </div>
-                <div className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 p-3 text-primary transition-all group-hover:scale-110 group-hover:from-primary group-hover:to-primary/80 group-hover:text-primary-foreground group-hover:shadow-lg">
-                  <stat.icon className="h-6 w-6" />
+                <div className="ml-4 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 p-3 text-primary transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 group-hover:from-primary group-hover:to-primary/80 group-hover:text-primary-foreground group-hover:shadow-md">
+                  <stat.icon className="h-5 w-5 sm:h-6 sm:w-6" />
                 </div>
               </div>
             </Card>

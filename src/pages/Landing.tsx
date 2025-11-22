@@ -44,22 +44,22 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-gradient-hero">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-16 max-w-[1388px] items-center justify-between px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary">
+      <nav className="sticky top-0 z-50 border-b border-border/40 glass-effect shadow-sm">
+        <div className="mx-auto flex h-16 max-w-[1388px] items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary shadow-md">
               <span className="text-lg font-bold text-primary-foreground">N</span>
             </div>
-            <span className="font-heading text-xl font-bold">
+            <span className="font-heading text-lg sm:text-xl font-bold">
               Nova<span className="text-primary">Intel</span>
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Link to="/login">
-              <Button variant="ghost">Login</Button>
+              <Button variant="ghost" className="hidden sm:inline-flex">Login</Button>
             </Link>
             <Link to="/register">
-              <Button className="bg-gradient-primary">Get Started</Button>
+              <Button variant="gradient" size="sm" className="text-xs sm:text-sm">Get Started</Button>
             </Link>
           </div>
         </div>
@@ -111,18 +111,19 @@ export default function Landing() {
               Everything you need to streamline presales from RFP to proposal
             </p>
           </div>
-          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
             {features.map((feature, index) => (
               <Card
                 key={index}
-                className="group relative overflow-hidden border-border/40 bg-gradient-card backdrop-blur-sm transition-all hover:-translate-y-1 hover:shadow-glass"
+                className="group relative overflow-hidden border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-lg hover:shadow-primary/10 hover:border-primary/30"
               >
-                <div className="p-6">
-                  <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="relative p-6">
+                  <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 text-primary transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 group-hover:bg-primary group-hover:text-primary-foreground group-hover:shadow-md">
                     <feature.icon className="h-6 w-6" />
                   </div>
-                  <h3 className="mb-2 font-heading text-xl font-semibold">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground">{feature.description}</p>
+                  <h3 className="mb-2 font-heading text-lg sm:text-xl font-semibold">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
                 </div>
               </Card>
             ))}

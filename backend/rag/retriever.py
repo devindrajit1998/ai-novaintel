@@ -139,13 +139,32 @@ class Retriever:
             
             # Apply optimization (reranking, hybrid)
             if use_reranking or use_hybrid:
-                results_dict = query_optimizer.optimize_results(
-                    query,
-                    results_dict,
-                    use_reranking=use_reranking,
-                    use_hybrid=use_hybrid,
-                    top_k=top_k
-                )
+                # Use centralized reranking service if available
+                if use_reranking:
+                    try:
+                        from services.rag.reranking_service import reranking_service
+                        if reranking_service.is_available():
+                            # Rerank before hybrid search
+                            results_dict = reranking_service.rerank(query, results_dict, top_k=None)
+                    except Exception as e:
+                        print(f"[WARNING] Reranking service failed: {e}")
+                
+                # Apply hybrid search if enabled (with RRF)
+                if use_hybrid and results_dict:
+                    # Extract semantic scores
+                    semantic_scores = [r.get('rerank_score') or r.get('score', 0.0) for r in results_dict]
+                    # Use hybrid searcher directly with RRF
+                    from services.rag.query_optimizer import query_optimizer
+                    results_dict = query_optimizer.hybrid_searcher.hybrid_search(
+                        query,
+                        results_dict,
+                        semantic_scores,
+                        use_rrf=True  # Use Reciprocal Rank Fusion
+                    )
+                elif use_reranking:
+                    # Just apply top_k after reranking
+                    if top_k:
+                        results_dict = results_dict[:top_k]
             else:
                 # Sort by score and take top_k
                 results_dict.sort(key=lambda x: x.get('score', 0.0), reverse=True)

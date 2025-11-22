@@ -51,24 +51,28 @@ export default function EmailVerification() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-hero px-4">
-      <Card className="w-full max-w-md border-border/40 bg-gradient-card p-8 shadow-glass backdrop-blur-sm">
+      <Card className="w-full max-w-md border-border/40 bg-card/80 backdrop-blur-sm shadow-xl p-6 sm:p-8">
         <div className="text-center">
           {status === "loading" && (
             <>
-              <Mail className="mx-auto mb-4 h-16 w-16 text-primary animate-pulse" />
-              <h1 className="mb-2 font-heading text-3xl font-bold">Verifying Email</h1>
-              <p className="text-muted-foreground">Please wait while we verify your email address...</p>
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/5">
+                <Mail className="h-7 w-7 text-primary animate-pulse" />
+              </div>
+              <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold">Verifying Email</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">Please wait while we verify your email address...</p>
             </>
           )}
 
           {status === "success" && (
             <>
-              <CheckCircle className="mx-auto mb-4 h-16 w-16 text-green-500" />
-              <h1 className="mb-2 font-heading text-3xl font-bold">Email Verified!</h1>
-              <p className="mb-6 text-muted-foreground">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-green-500/10 to-green-500/5">
+                <CheckCircle className="h-7 w-7 text-green-600" />
+              </div>
+              <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold">Email Verified!</h1>
+              <p className="mb-6 text-sm sm:text-base text-muted-foreground">
                 Your email has been successfully verified. You can now log in to your account.
               </p>
-              <Button asChild className="bg-gradient-primary">
+              <Button asChild variant="gradient" className="shadow-md hover:shadow-lg">
                 <Link to="/login">Go to Login</Link>
               </Button>
             </>
@@ -76,16 +80,18 @@ export default function EmailVerification() {
 
           {status === "error" && (
             <>
-              <XCircle className="mx-auto mb-4 h-16 w-16 text-destructive" />
-              <h1 className="mb-2 font-heading text-3xl font-bold">Verification Failed</h1>
-              <p className="mb-6 text-muted-foreground">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-red-500/10 to-red-500/5">
+                <XCircle className="h-7 w-7 text-destructive" />
+              </div>
+              <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold">Verification Failed</h1>
+              <p className="mb-6 text-sm sm:text-base text-muted-foreground">
                 The verification link is invalid or has expired. Please try registering again.
               </p>
-              <div className="flex gap-3 justify-center">
-                <Button asChild variant="outline">
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button asChild variant="outline" size="sm" className="text-xs sm:text-sm">
                   <Link to="/register">Register Again</Link>
                 </Button>
-                <Button asChild className="bg-gradient-primary">
+                <Button asChild variant="gradient" size="sm" className="text-xs sm:text-sm shadow-md hover:shadow-lg">
                   <Link to="/login">Go to Login</Link>
                 </Button>
               </div>

@@ -59,15 +59,26 @@ export default function AdminAnalytics() {
     }
 
     if (!analytics) {
-        return (
-            <DashboardLayout>
-                <div className="flex items-center justify-center h-full">
-                    <Card className="p-6">
-                        <p className="text-muted-foreground">No analytics data available</p>
-                    </Card>
+    return (
+        <DashboardLayout>
+            <div className="space-y-6 sm:space-y-8">
+                {/* Header */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8 border border-border/40">
+                    <div className="relative z-10">
+                        <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                            Analytics & Reports
+                        </h1>
+                        <p className="text-sm sm:text-base text-muted-foreground">Comprehensive insights and metrics</p>
+                    </div>
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
                 </div>
-            </DashboardLayout>
-        );
+                
+                <Card className="p-6 sm:p-8">
+                    <p className="text-muted-foreground">No analytics data available</p>
+                </Card>
+            </div>
+        </DashboardLayout>
+    );
     }
 
     // Prepare chart data
@@ -106,15 +117,92 @@ export default function AdminAnalytics() {
 
     return (
         <DashboardLayout>
-            <div className="space-y-6">
-                <div>
-                    <h1 className="text-3xl font-bold">Analytics & Reports</h1>
-                    <p className="text-muted-foreground">Comprehensive insights and metrics</p>
+            <div className="space-y-6 sm:space-y-8">
+                {/* Header */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8 border border-border/40">
+                    <div className="relative z-10">
+                        <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                            Analytics & Reports
+                        </h1>
+                        <p className="text-sm sm:text-base text-muted-foreground">Comprehensive insights and metrics</p>
+                    </div>
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
                 </div>
 
                 {/* Overview Cards */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <Card className="p-4">
+                <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Proposals</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{analytics.proposals?.total || 0}</p>
+                                <div className="flex items-center gap-1 mt-1">
+                                    <TrendingUp className="h-3 w-3 text-green-500" />
+                                    <span className="text-xs text-muted-foreground">
+                                        {analytics.activity?.recent_submissions || 0} last 7 days
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-blue-500/10 to-blue-500/5 p-2 text-blue-600">
+                                <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
+                        </div>
+                    </Card>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Projects</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{analytics.projects?.total || 0}</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    {analytics.projects?.active || 0} Active
+                                </p>
+                            </div>
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-purple-500/10 to-purple-500/5 p-2 text-purple-600">
+                                <Briefcase className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
+                        </div>
+                    </Card>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Users</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{analytics.users?.total || 0}</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    {analytics.users?.analysts || 0} Analysts, {analytics.users?.managers || 0} Managers
+                                </p>
+                            </div>
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-green-500/10 to-green-500/5 p-2 text-green-600">
+                                <Users className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
+                        </div>
+                    </Card>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                        <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Approval Rate</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{analytics.activity?.approval_rate || 0}%</p>
+                                <div className="flex items-center gap-1 mt-1">
+                                    <CheckCircle className="h-3 w-3 text-green-500" />
+                                    <span className="text-xs text-muted-foreground">
+                                        {analytics.activity?.recent_approvals || 0} approvals (7 days)
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-orange-500/10 to-orange-500/5 p-2 text-orange-600">
+                                <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+
+                {/* Charts Grid */}
+                <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
+                    {/* Proposal Status Pie Chart */}
+                    <Card className="p-4 sm:p-6 border-border/40 bg-card/80 backdrop-blur-sm shadow-sm">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">Total Proposals</p>
@@ -209,7 +297,7 @@ export default function AdminAnalytics() {
                     </Card>
 
                     {/* Daily Trends Line Chart */}
-                    <Card className="p-6">
+                    <Card className="p-4 sm:p-6 border-border/40 bg-card/80 backdrop-blur-sm shadow-sm">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <h2 className="text-xl font-semibold">Daily Activity (14 Days)</h2>

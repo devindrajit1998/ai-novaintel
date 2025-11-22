@@ -136,86 +136,107 @@ export default function AdminProposals() {
 
     return (
         <DashboardLayout>
-            <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold">Proposal Management</h1>
-                        <p className="text-muted-foreground">Review, approve, and manage all proposals</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Search proposals..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-9 w-64"
-                            />
+            <div className="space-y-6 sm:space-y-8">
+                {/* Header */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8 border border-border/40">
+                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h1 className="mb-2 font-heading text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                                Proposal Management
+                            </h1>
+                            <p className="text-sm sm:text-base text-muted-foreground">Review, approve, and manage all proposals</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="relative w-full sm:w-auto">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search proposals..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-9 w-full sm:w-64 bg-background/50"
+                                />
+                            </div>
                         </div>
                     </div>
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
                 </div>
 
                 {/* Status Cards */}
-                <div className="grid gap-4 md:grid-cols-5">
-                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab("pending_approval")}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Pending</p>
-                                <p className="text-2xl font-bold">{statusCounts.pending_approval}</p>
+                <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-5">
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-yellow-300 cursor-pointer" onClick={() => setActiveTab("pending_approval")}>
+                        <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Pending</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{statusCounts.pending_approval}</p>
                             </div>
-                            <Clock className="h-8 w-8 text-yellow-500" />
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 p-2 text-yellow-600">
+                                <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
                         </div>
                     </Card>
-                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab("approved")}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Approved</p>
-                                <p className="text-2xl font-bold">{statusCounts.approved}</p>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-green-300 cursor-pointer" onClick={() => setActiveTab("approved")}>
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Approved</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{statusCounts.approved}</p>
                             </div>
-                            <CheckCircle className="h-8 w-8 text-green-500" />
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-green-500/10 to-green-500/5 p-2 text-green-600">
+                                <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
                         </div>
                     </Card>
-                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab("rejected")}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Rejected</p>
-                                <p className="text-2xl font-bold">{statusCounts.rejected}</p>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-red-300 cursor-pointer" onClick={() => setActiveTab("rejected")}>
+                        <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Rejected</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{statusCounts.rejected}</p>
                             </div>
-                            <XCircle className="h-8 w-8 text-red-500" />
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-red-500/10 to-red-500/5 p-2 text-red-600">
+                                <XCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
                         </div>
                     </Card>
-                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab("on_hold")}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-muted-foreground">On Hold</p>
-                                <p className="text-2xl font-bold">{statusCounts.on_hold}</p>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-blue-300 cursor-pointer" onClick={() => setActiveTab("on_hold")}>
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">On Hold</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{statusCounts.on_hold}</p>
                             </div>
-                            <FileText className="h-8 w-8 text-blue-500" />
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-blue-500/10 to-blue-500/5 p-2 text-blue-600">
+                                <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
                         </div>
                     </Card>
-                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab("all")}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Total</p>
-                                <p className="text-2xl font-bold">{statusCounts.all}</p>
+                    <Card className="group relative overflow-hidden p-4 border-border/40 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-indigo-300 cursor-pointer col-span-2 md:col-span-1" onClick={() => setActiveTab("all")}>
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total</p>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{statusCounts.all}</p>
                             </div>
-                            <FileText className="h-8 w-8 text-indigo-500" />
+                            <div className="ml-2 rounded-lg bg-gradient-to-br from-indigo-500/10 to-indigo-500/5 p-2 text-indigo-600">
+                                <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
                         </div>
                     </Card>
                 </div>
 
                 {/* Proposals Table */}
-                <Card>
+                <Card className="border-border/40 bg-card/80 backdrop-blur-sm shadow-sm">
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
-                        <TabsList className="w-full justify-start rounded-none border-b">
-                            <TabsTrigger value="pending_approval">Pending ({statusCounts.pending_approval})</TabsTrigger>
-                            <TabsTrigger value="approved">Approved ({statusCounts.approved})</TabsTrigger>
-                            <TabsTrigger value="rejected">Rejected ({statusCounts.rejected})</TabsTrigger>
-                            <TabsTrigger value="on_hold">On Hold ({statusCounts.on_hold})</TabsTrigger>
-                            <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                        <TabsList className="w-full justify-start rounded-none border-b bg-muted/30">
+                            <TabsTrigger value="pending_approval" className="text-xs sm:text-sm">Pending ({statusCounts.pending_approval})</TabsTrigger>
+                            <TabsTrigger value="approved" className="text-xs sm:text-sm">Approved ({statusCounts.approved})</TabsTrigger>
+                            <TabsTrigger value="rejected" className="text-xs sm:text-sm">Rejected ({statusCounts.rejected})</TabsTrigger>
+                            <TabsTrigger value="on_hold" className="text-xs sm:text-sm">On Hold ({statusCounts.on_hold})</TabsTrigger>
+                            <TabsTrigger value="all" className="text-xs sm:text-sm">All ({statusCounts.all})</TabsTrigger>
                         </TabsList>
 
-                        <TabsContent value={activeTab} className="p-6">
+                        <TabsContent value={activeTab} className="p-4 sm:p-6">
                             {isLoading ? (
                                 <div className="flex items-center justify-center py-12">
                                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

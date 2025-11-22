@@ -256,11 +256,16 @@ export default function CaseStudies() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-8 border border-border/40">
+      <div className="space-y-6 sm:space-y-8">
+        {/* Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8 border border-border/40">
           <div className="relative z-10">
-            <h1 className="mb-2 font-heading text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">Case Study Management</h1>
-            <p className="text-muted-foreground text-lg">Upload documents to train your AI system and manage case studies</p>
+            <h1 className="mb-2 font-heading text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Case Study Management
+            </h1>
+            <p className="text-sm sm:text-base lg:text-lg text-muted-foreground">
+              Upload documents to train your AI system and manage case studies
+            </p>
           </div>
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
         </div>
@@ -274,7 +279,7 @@ export default function CaseStudies() {
 
           {/* Upload & Train Tab */}
           <TabsContent value="upload" className="space-y-6">
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
               <div className="mb-6">
                 <h2 className="mb-2 font-heading text-xl font-semibold">Upload Case Study Document</h2>
                 <p className="text-sm text-muted-foreground">
@@ -317,7 +322,7 @@ export default function CaseStudies() {
             </Card>
 
             {caseStudyDocs.length > 0 && (
-              <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+              <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
                 <h3 className="mb-4 font-semibold">Recent Uploads</h3>
                 <div className="space-y-3">
                   {caseStudyDocs.slice(0, 5).map((doc: any) => (
@@ -368,7 +373,7 @@ export default function CaseStudies() {
 
           {/* Documents Tab */}
           <TabsContent value="documents" className="space-y-6">
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-heading text-xl font-semibold">Uploaded Documents</h2>
                 <div className="relative w-64">
@@ -454,7 +459,7 @@ export default function CaseStudies() {
 
           {/* Case Studies Tab */}
           <TabsContent value="case-studies" className="space-y-6">
-            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+            <Card className="border-border/40 bg-card/80 backdrop-blur-sm p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-heading text-xl font-semibold">Case Studies</h2>
                 <div className="flex items-center gap-3">
