@@ -95,6 +95,7 @@ async def lifespan(app: FastAPI):
         print(f"[WARNING] Database initialization error: {e}")
 
     # Service check logs - run quickly, don't block
+    # Note: Services are initialized on import, but we check availability here
     try:
         from utils.gemini_service import gemini_service
         if gemini_service.is_available():
@@ -104,21 +105,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[WARNING] Gemini service failed: {e}")
 
-    try:
-        from rag.vector_store import vector_store_manager
-        from rag.embedding_service import embedding_service
-        
-        if vector_store_manager.is_available():
-            print(f"[OK] Vector store ready: {settings.VECTOR_DB_TYPE}")
-        else:
-            print("[ERROR] Vector store NOT available - check logs above for details")
-            
-        if embedding_service.is_available():
-            print("[OK] Embedding service ready")
-        else:
-            print("[ERROR] Embedding service NOT available - check logs above for details")
-    except Exception as e:
-        print(f"[WARNING] RAG services failed: {e}")
+    # RAG services are imported lazily to avoid blocking startup
+    # They will be initialized when first accessed
+    print("[INFO] RAG services will be initialized on first use")
 
     print("[INFO] Startup complete - server ready to accept requests")
     

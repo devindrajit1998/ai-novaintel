@@ -21,7 +21,10 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Send
+  Send,
+  GitCompare,
+  X,
+  Check
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
@@ -30,6 +33,7 @@ import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownText } from "@/components/ui/markdown-text";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -80,6 +84,16 @@ export default function ProposalBuilder() {
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
   const [selectedManagerId, setSelectedManagerId] = useState<number | undefined>(undefined);
+  const [comparisonDialogOpen, setComparisonDialogOpen] = useState(false);
+  const [comparisonData, setComparisonData] = useState<{
+    type: 'section' | 'full';
+    sectionId?: number;
+    sectionTitle?: string;
+    oldContent?: string;
+    newContent?: string;
+    oldSections?: ProposalSection[];
+    newSections?: ProposalSection[];
+  } | null>(null);
   const { user } = useAuth();
 
   // Load project info
@@ -114,6 +128,16 @@ export default function ProposalBuilder() {
     retry: false,
   });
 
+  // Load user settings to get company name
+  const { data: userSettings } = useQuery({
+    queryKey: ["userSettings"],
+    queryFn: () => apiClient.getUserSettings(),
+    enabled: !!user,
+  });
+
+  // Get company name from settings, fallback to "NovaIntel AI"
+  const companyName = userSettings?.company_name || "NovaIntel AI";
+
   // Initialize sections from proposal
   useEffect(() => {
     if (proposal) {
@@ -136,14 +160,34 @@ export default function ProposalBuilder() {
       return await apiClient.generateProposal(projectId, templateType, useInsights, selectedCaseStudyIds);
     },
     onSuccess: (data) => {
-      setSections(data.sections || []);
-      setTitle(data.title || "Proposal");
-      setTemplateType(data.template_type || templateType);
-      queryClient.invalidateQueries({ queryKey: ["proposal", projectId] });
-      toast.success("Proposal generated successfully with AI-powered content!");
-      setIsGenerating(false);
-      // Refetch proposal to get the latest data
-      refetchProposal();
+      // Check if this is a regeneration by looking at the response data
+      // Backend returns is_regeneration: true and old_sections when regenerating
+      const hasOldSections = data.old_sections !== undefined && data.old_sections !== null && 
+                            Array.isArray(data.old_sections) && data.old_sections.length > 0;
+      const isRegeneration = data.is_regeneration === true || hasOldSections;
+      
+      if (isRegeneration && hasOldSections) {
+        // Show comparison dialog for regeneration
+        setComparisonData({
+          type: 'full',
+          oldSections: data.old_sections,
+          newSections: data.sections || []
+        });
+        setComparisonDialogOpen(true);
+        // Store new sections temporarily (will be saved if user accepts)
+        setSections(data.sections || []);
+        setTitle(data.title || "Proposal");
+        setTemplateType(data.template_type || templateType);
+        setIsGenerating(false);
+      } else {
+        // New proposal - no comparison needed
+        setSections(data.sections || []);
+        setTitle(data.title || "Proposal");
+        setTemplateType(data.template_type || templateType);
+        queryClient.invalidateQueries({ queryKey: ["proposal", projectId] });
+        toast.success("Proposal generated successfully with AI-powered content!");
+        setIsGenerating(false);
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to generate proposal");
@@ -228,6 +272,12 @@ export default function ProposalBuilder() {
     if (!projectId) {
       toast.error("Project ID is required");
       return;
+    }
+
+    // If regenerating (proposal exists), ensure we have the latest proposal data
+    if (proposal) {
+      // Refetch proposal to ensure we have latest sections for comparison
+      await refetchProposal();
     }
 
     setIsGenerating(true);
@@ -316,13 +366,61 @@ export default function ProposalBuilder() {
       return await apiClient.regenerateSection(proposal.id, sectionId, sectionTitle);
     },
     onSuccess: (data) => {
-      // Update the section content
-      handleUpdateSection(data.section_id, 'content', data.content);
-      queryClient.invalidateQueries({ queryKey: ["proposal", projectId] });
-      toast.success("Section regenerated with AI!");
+      // Show comparison dialog with old and new content
+      setComparisonData({
+        type: 'section',
+        sectionId: data.section_id,
+        sectionTitle: data.section_title,
+        oldContent: data.old_content || "",
+        newContent: data.new_content || ""
+      });
+      setComparisonDialogOpen(true);
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to regenerate section");
+    },
+  });
+
+  // Accept regeneration mutation
+  const acceptRegenerationMutation = useMutation({
+    mutationFn: async ({ accept, sectionId, newContent, newSections }: { 
+      accept: boolean; 
+      sectionId?: number;
+      newContent?: string;
+      newSections?: ProposalSection[];
+    }) => {
+      if (!proposal?.id) {
+        throw new Error("Proposal not found");
+      }
+      return await apiClient.acceptRegeneration(
+        proposal.id, 
+        sectionId || null, 
+        accept,
+        newContent,
+        newSections
+      );
+    },
+    onSuccess: (data, variables) => {
+      if (variables.accept) {
+        if (comparisonData?.type === 'section' && comparisonData.sectionId) {
+          // Update the section with new content
+          handleUpdateSection(comparisonData.sectionId, 'content', comparisonData.newContent || "");
+        } else if (comparisonData?.type === 'full' && comparisonData.newSections) {
+          // Update all sections
+          setSections(comparisonData.newSections);
+        }
+        queryClient.invalidateQueries({ queryKey: ["proposal", projectId] });
+        toast.success("New version accepted and saved!");
+      } else {
+        // Reject - keep old version (no changes needed, backend keeps original)
+        toast.info("Regeneration rejected, keeping original version");
+      }
+      setComparisonDialogOpen(false);
+      setComparisonData(null);
+      refetchProposal();
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to accept/reject regeneration");
     },
   });
 
@@ -573,7 +671,7 @@ export default function ProposalBuilder() {
                   <div className="mb-8">
                     <div className="flex justify-between items-start pb-6 border-b-2 border-blue-800">
                       <div>
-                        <h1 className="text-2xl font-bold text-gray-900">NovaIntel AI</h1>
+                        <h1 className="text-2xl font-bold text-gray-900">{companyName}</h1>
                         <p className="text-gray-600 text-sm">AI-Powered Proposal Platform</p>
                       </div>
                       <div className="text-right">
@@ -653,7 +751,7 @@ export default function ProposalBuilder() {
                   {/* Footer */}
                   <div className="mt-12 pt-6 border-t border-gray-200 text-center">
                     <p className="text-sm text-gray-500">
-                      Generated by NovaIntel AI | {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}<br />
+                      Generated by {companyName} | {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}<br />
                       This is an AI-generated proposal based on your RFP analysis
                     </p>
                   </div>
@@ -1014,6 +1112,133 @@ export default function ProposalBuilder() {
                   <>
                     <Send className="mr-2 h-4 w-4" />
                     Submit
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Comparison Dialog */}
+        <Dialog open={comparisonDialogOpen} onOpenChange={setComparisonDialogOpen}>
+          <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <GitCompare className="h-5 w-5" />
+                {comparisonData?.type === 'section' 
+                  ? `Compare: ${comparisonData.sectionTitle}` 
+                  : 'Compare: Full Proposal'}
+              </DialogTitle>
+              <DialogDescription>
+                Review the changes below. Choose to accept the new version or keep the original.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="flex-1 overflow-hidden flex gap-4 min-h-[500px]">
+              {/* Old Version */}
+              <div className="flex-1 flex flex-col border rounded-lg overflow-hidden">
+                <div className="bg-muted/50 px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm">Original Version</span>
+                    <Badge variant="outline" className="text-xs">Current</Badge>
+                  </div>
+                </div>
+                <ScrollArea className="flex-1">
+                  <div className="p-4">
+                    {comparisonData?.type === 'section' ? (
+                      <div className="prose prose-sm max-w-none">
+                        <MarkdownText content={comparisonData.oldContent || "No content"} />
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {comparisonData?.oldSections && comparisonData.oldSections.length > 0 ? (
+                          comparisonData.oldSections.map((section: any, idx: number) => (
+                            <div key={idx} className="border-b pb-4 last:border-0">
+                              <h3 className="font-semibold text-sm mb-2">{section.title || `Section ${idx + 1}`}</h3>
+                              <div className="prose prose-sm max-w-none">
+                                <MarkdownText content={section.content || "No content"} />
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-muted-foreground text-sm">No previous version available</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {/* New Version */}
+              <div className="flex-1 flex flex-col border rounded-lg overflow-hidden border-primary/50">
+                <div className="bg-primary/10 px-4 py-2 border-b border-primary/50 flex items-center justify-between flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm">New Version</span>
+                    <Badge variant="default" className="text-xs bg-primary">AI Generated</Badge>
+                  </div>
+                </div>
+                <ScrollArea className="flex-1">
+                  <div className="p-4">
+                    {comparisonData?.type === 'section' ? (
+                      <div className="prose prose-sm max-w-none">
+                        <MarkdownText content={comparisonData.newContent || "No content"} />
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {comparisonData?.newSections && comparisonData.newSections.length > 0 ? (
+                          comparisonData.newSections.map((section: any, idx: number) => (
+                            <div key={idx} className="border-b pb-4 last:border-0">
+                              <h3 className="font-semibold text-sm mb-2">{section.title || `Section ${idx + 1}`}</h3>
+                              <div className="prose prose-sm max-w-none">
+                                <MarkdownText content={section.content || "No content"} />
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-muted-foreground text-sm">No new version available</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+
+            <DialogFooter className="flex-shrink-0 border-t pt-4 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  acceptRegenerationMutation.mutate({
+                    accept: false,
+                    sectionId: comparisonData?.sectionId
+                  });
+                }}
+                disabled={acceptRegenerationMutation.isPending}
+              >
+                <X className="mr-2 h-4 w-4" />
+                Keep Original
+              </Button>
+              <Button
+                onClick={() => {
+                  acceptRegenerationMutation.mutate({
+                    accept: true,
+                    sectionId: comparisonData?.sectionId,
+                    newContent: comparisonData?.type === 'section' ? comparisonData.newContent : undefined,
+                    newSections: comparisonData?.type === 'full' ? comparisonData.newSections : undefined
+                  });
+                }}
+                disabled={acceptRegenerationMutation.isPending}
+                className="bg-primary"
+              >
+                {acceptRegenerationMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Accept New Version
                   </>
                 )}
               </Button>

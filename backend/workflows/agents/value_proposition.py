@@ -61,11 +61,17 @@ class ValuePropositionAgent:
         
         # Set up structured output parser
         output_parser = PydanticOutputParser(pydantic_object=ValuePropositionsOutput)
-        format_instructions = output_parser.get_format_instructions()
+        
+        # Simple format instructions without JSON schema to avoid template parsing issues
+        # Use escaped curly braces to prevent LangChain from treating JSON field names as template variables
+        format_instructions_simple = """Return your response as a valid JSON object with a value_propositions array of strings.
+
+Example: {{"value_propositions": ["Value prop 1", "Value prop 2", ...]}}"""
+        
         system_prompt = get_few_shot_value_proposition_prompt()
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", f"""{system_prompt}
+            ("system", system_prompt + """
 
 Each value proposition should be:
 - Specific and measurable
@@ -74,8 +80,7 @@ Each value proposition should be:
 - Quantifiable where possible (e.g., "45% reduction in operational costs")
 
 Generate 5-8 value propositions.
-
-{format_instructions}"""),
+"""),
             ("user", """Based on these challenges, create value propositions:
 
 Challenges:
@@ -83,6 +88,8 @@ Challenges:
 
 RFP Context:
 {rfp_summary}
+
+{format_instructions}
 
 Provide value propositions in the specified JSON format.""")
         ])
@@ -92,7 +99,7 @@ Provide value propositions in the specified JSON format.""")
             response = chain.invoke({
                 "challenges": challenges_text or "No challenges identified",
                 "rfp_summary": rfp_summary or "No summary available",
-                "format_instructions": format_instructions
+                "format_instructions": format_instructions_simple
             })
             
             # Response is already parsed as Pydantic model

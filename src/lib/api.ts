@@ -74,6 +74,14 @@ export interface RFPUploadResponse {
   uploaded_at: string;
   message: string;
   rfp_document_id: number;
+  indexed?: boolean;
+  analyzed?: boolean;
+  proposal_ready?: boolean;
+}
+
+export interface RFPUploadOptions {
+  auto_index?: boolean;
+  auto_analyze?: boolean;
 }
 
 export interface Insights {
@@ -363,13 +371,27 @@ class ApiClient {
   }
 
   // Upload endpoints
-  async uploadRFP(projectId: number, file: File): Promise<RFPUploadResponse> {
+  async uploadRFP(
+    projectId: number, 
+    file: File, 
+    options?: RFPUploadOptions
+  ): Promise<RFPUploadResponse> {
     const token = this.getAuthToken();
     const formData = new FormData();
     formData.append("file", file);
 
+    // Build query parameters
+    const params = new URLSearchParams();
+    params.set("project_id", projectId.toString());
+    if (options?.auto_index !== undefined) {
+      params.set("auto_index", options.auto_index.toString());
+    }
+    if (options?.auto_analyze !== undefined) {
+      params.set("auto_analyze", options.auto_analyze.toString());
+    }
+
     const response = await fetch(
-      `${this.baseURL}/upload/rfp?project_id=${projectId}`,
+      `${this.baseURL}/upload/rfp?${params.toString()}`,
       {
         method: "POST",
         headers: {
@@ -647,6 +669,25 @@ class ApiClient {
         proposal_id: proposalId,
         section_id: sectionId,
         section_title: sectionTitle,
+      }),
+    });
+  }
+
+  async acceptRegeneration(
+    proposalId: number,
+    sectionId: number | null,
+    accept: boolean,
+    newContent?: string,
+    newSections?: any[]
+  ): Promise<any> {
+    return this.request<any>("/proposal/accept-regeneration", {
+      method: "POST",
+      body: JSON.stringify({
+        proposal_id: proposalId,
+        section_id: sectionId,
+        accept: accept,
+        new_content: newContent,
+        new_sections: newSections,
       }),
     });
   }

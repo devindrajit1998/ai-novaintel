@@ -58,6 +58,17 @@ def now_ist() -> datetime:
     """
     return datetime.now(IST)
 
+def now_utc_from_ist() -> datetime:
+    """
+    Get current time in IST, but return as UTC for database storage.
+    This ensures we're using IST as the source timezone but storing in UTC.
+    
+    Returns:
+        Current datetime in UTC (converted from IST)
+    """
+    ist_now = datetime.now(IST)
+    return ist_now.astimezone(UTC).replace(tzinfo=None)
+
 def format_ist(dt: Optional[datetime], format_str: str = "%Y-%m-%d %H:%M:%S %Z") -> str:
     """
     Format a datetime in IST.

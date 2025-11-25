@@ -74,3 +74,10 @@ class RegenerateSectionRequest(BaseModel):
     section_id: int
     section_title: str
 
+class AcceptRegenerationRequest(BaseModel):
+    proposal_id: int
+    section_id: Optional[int] = None  # If None, accept full proposal regeneration
+    accept: bool = True  # True to accept new version, False to keep old
+    new_content: Optional[str] = None  # New content for section regeneration (if section_id provided)
+    new_sections: Optional[List[Dict]] = None  # New sections for full proposal regeneration
+

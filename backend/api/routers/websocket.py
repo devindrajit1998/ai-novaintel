@@ -52,20 +52,33 @@ async def system_websocket_endpoint(websocket: WebSocket, user_id: int, token: s
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
         
-        # Connect to global manager
+        # Connect to global manager (this accepts the connection)
         await global_ws_manager.connect(websocket, user.id)
         
-        # Send connection confirmation
-        await global_ws_manager.send_to_user(user.id, {
-            "type": "connection",
-            "status": "connected",
-            "user_id": user.id,
-            "role": user.role
-        })
+        # Small delay to ensure connection is fully established
+        import asyncio
+        await asyncio.sleep(0.1)
+        
+        # Send connection confirmation (only if connection is still valid)
+        try:
+            if websocket.client_state.name == "CONNECTED":
+                await global_ws_manager.send_to_user(user.id, {
+                    "type": "connection",
+                    "status": "connected",
+                    "user_id": user.id,
+                    "role": user.role
+                })
+        except Exception as e:
+            # Silently handle connection confirmation errors
+            pass
         
         # Handle incoming messages (for subscriptions, etc.)
         while True:
             try:
+                # Check connection state before receiving
+                if websocket.client_state.name != "CONNECTED":
+                    break
+                
                 data = await websocket.receive_text()
                 message_data = json.loads(data)
                 message_type = message_data.get("type")
@@ -74,21 +87,25 @@ async def system_websocket_endpoint(websocket: WebSocket, user_id: int, token: s
                     # Subscribe to specific update types
                     subscription_type = message_data.get("subscription_type", "all")
                     global_ws_manager.subscribe(user.id, subscription_type)
-                    await global_ws_manager.send_to_user(user.id, {
-                        "type": "subscription",
-                        "status": "subscribed",
-                        "subscription_type": subscription_type
-                    })
+                    # Only send if connection is still valid
+                    if websocket.client_state.name == "CONNECTED":
+                        await global_ws_manager.send_to_user(user.id, {
+                            "type": "subscription",
+                            "status": "subscribed",
+                            "subscription_type": subscription_type
+                        })
                 
                 elif message_type == "unsubscribe":
                     # Unsubscribe from specific update types
                     subscription_type = message_data.get("subscription_type", "all")
                     global_ws_manager.unsubscribe(user.id, subscription_type)
-                    await global_ws_manager.send_to_user(user.id, {
-                        "type": "subscription",
-                        "status": "unsubscribed",
-                        "subscription_type": subscription_type
-                    })
+                    # Only send if connection is still valid
+                    if websocket.client_state.name == "CONNECTED":
+                        await global_ws_manager.send_to_user(user.id, {
+                            "type": "subscription",
+                            "status": "unsubscribed",
+                            "subscription_type": subscription_type
+                        })
                 
             except WebSocketDisconnect:
                 # Client disconnected, break out of loop
@@ -96,9 +113,12 @@ async def system_websocket_endpoint(websocket: WebSocket, user_id: int, token: s
             except json.JSONDecodeError:
                 continue
             except Exception as e:
-                print(f"Error processing WebSocket message: {e}")
+                error_str = str(e).lower()
+                # Only log non-connection errors to reduce spam
+                if "not connected" not in error_str and "accept" not in error_str:
+                    print(f"Error processing WebSocket message: {e}")
                 # Check if connection is still open before continuing
-                if websocket.client_state.name == "DISCONNECTED":
+                if not hasattr(websocket, 'client_state') or websocket.client_state.name == "DISCONNECTED":
                     break
                 continue
                 

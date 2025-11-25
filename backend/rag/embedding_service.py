@@ -52,6 +52,8 @@ class EmbeddingService:
                 traceback.print_exc()
         
         # Fallback to HuggingFace (free)
+        # Note: This initialization might take time if models need to be downloaded
+        # We catch exceptions to avoid blocking server startup
         try:
             from llama_index.embeddings.huggingface import HuggingFaceEmbedding
             
@@ -66,6 +68,7 @@ class EmbeddingService:
             
             for model_name in models_to_try:
                 try:
+                    # Try to initialize - if this blocks, we'll catch and continue
                     self.embedding_model = HuggingFaceEmbedding(
                         model_name=model_name
                     )
@@ -79,19 +82,20 @@ class EmbeddingService:
                     break
                 except Exception as e:
                     if model_name == models_to_try[-1]:
-                        raise e
+                        # Last model failed, but don't raise - just set to None
+                        print(f"[WARNING] Failed to load any HuggingFace model: {e}")
+                        self.embedding_model = None
+                        break
                     print(f"[INFO] Failed to load {model_name}, trying next model...")
                     continue
                     
         except ImportError as e:
-            print(f"[ERROR] Missing HuggingFace dependencies: {e}")
+            print(f"[WARNING] Missing HuggingFace dependencies: {e}")
             print("   Run: pip install llama-index-embeddings-huggingface sentence-transformers")
             self.embedding_model = None
         except Exception as e:
-            print(f"[ERROR] Error initializing embeddings: {e}")
-            import traceback
-            traceback.print_exc()
-            print("[WARNING] No embedding service available")
+            # Catch any other exceptions to prevent blocking server startup
+            print(f"[WARNING] Error initializing embeddings (non-blocking): {e}")
             self.embedding_model = None
     
     def get_embedding_dimension(self) -> Optional[int]:

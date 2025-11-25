@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from db.database import Base
+from utils.timezone import now_utc_from_ist
 
 class Insights(Base):
     __tablename__ = "insights"
@@ -34,8 +35,8 @@ class Insights(Base):
     # AI metadata
     ai_model_used = Column(Text, nullable=True)
     analysis_timestamp = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_utc_from_ist)
+    updated_at = Column(DateTime, default=now_utc_from_ist, onupdate=now_utc_from_ist)
     
     # Relationships
     project = relationship("Project", back_populates="insights")

@@ -122,13 +122,18 @@ class WorkflowManager:
                     print(f"  - {log_entry.get('step', 'unknown')}: {log_entry.get('status', 'unknown')}")
             print(f"{'='*60}\n")
             
-            # Update stored state
+            # Update stored state (keep it for status tracking)
             self.active_states[state_id] = final_state
+            # Keep project mapping so status endpoint can find it
+            self.project_states[project_id] = state_id
             
             # Save insights to database
             print(f"💾 Saving insights to database...")
             self._save_insights(final_state, db)
             print(f"✓ Insights saved successfully")
+            
+            # Note: We keep the state in memory even after saving insights
+            # so the status endpoint can detect completion
             
             # Handle None values properly - .get() returns None if key exists with None value
             challenges = final_state.get("challenges") or []
@@ -286,9 +291,46 @@ class WorkflowManager:
             else:
                 insights.matching_case_studies = None
             
+            # Save proposal draft
+            proposal_draft = state.get("proposal_draft")
+            if proposal_draft:
+                if isinstance(proposal_draft, dict):
+                    # Check if proposal_draft has any meaningful content
+                    # Support both old and new field names for backward compatibility
+                    old_fields = ["executive_summary", "client_challenges", "proposed_solution", 
+                                 "benefits_value", "case_studies", "implementation_approach"]
+                    new_fields = ["executive_summary", "understanding_client_needs", "proposed_solution",
+                                 "solution_architecture", "business_value_use_cases", "benefits_roi",
+                                 "implementation_roadmap", "change_management_training", "security_compliance",
+                                 "case_studies_credentials", "commercial_model", "risks_assumptions", "next_steps_cta"]
+                    # Check for content in either old or new format
+                    has_content = any(
+                        proposal_draft.get(key) and len(str(proposal_draft.get(key)).strip()) > 0
+                        for key in old_fields + new_fields
+                    )
+                    if has_content:
+                        # Replace company name placeholders before saving
+                        from utils.proposal_utils import replace_placeholders_in_proposal_draft
+                        company_name = user.company_name if user else None
+                        if company_name:
+                            proposal_draft = replace_placeholders_in_proposal_draft(proposal_draft, company_name)
+                            print(f"  ✓ Company name placeholders replaced with: {company_name}")
+                        insights.proposal_draft = proposal_draft
+                        print(f"  ✓ Proposal draft saved with {len(proposal_draft)} sections")
+                    else:
+                        print(f"  ⚠️  Proposal draft is empty, not saving")
+                        insights.proposal_draft = None
+                else:
+                    print(f"  ⚠️  Proposal draft is not a dict: {type(proposal_draft)}, value: {proposal_draft}")
+                    insights.proposal_draft = None
+            else:
+                print(f"  ⚠️  No proposal draft in state")
+                insights.proposal_draft = None
+            
             insights.ai_model_used = state.get("ai_model_used", "gemini-2.0-flash")
             from datetime import datetime
-            insights.analysis_timestamp = datetime.utcnow()
+            from utils.timezone import now_utc_from_ist
+            insights.analysis_timestamp = now_utc_from_ist()
             
             print(f"\n  ✅ Final values before commit:")
             print(f"    - Executive summary: {len(str(insights.executive_summary)) if insights.executive_summary else 0} chars")
@@ -296,6 +338,7 @@ class WorkflowManager:
             print(f"    - Value propositions: {len(insights.value_propositions) if insights.value_propositions and isinstance(insights.value_propositions, list) else 0}")
             print(f"    - Discovery questions: {len(insights.discovery_questions) if insights.discovery_questions and isinstance(insights.discovery_questions, dict) else 0}")
             print(f"    - Matching case studies: {len(insights.matching_case_studies) if insights.matching_case_studies and isinstance(insights.matching_case_studies, list) else 0}")
+            print(f"    - Proposal draft: {'✓ Saved' if insights.proposal_draft else '✗ Not saved'}")
             print(f"    - Tags: {len(insights.tags) if insights.tags and isinstance(insights.tags, list) else 0}")
             
             db.commit()

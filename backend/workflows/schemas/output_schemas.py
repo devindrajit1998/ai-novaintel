@@ -64,12 +64,19 @@ class ProposalSectionOutput(BaseModel):
 
 class ProposalDraftOutput(BaseModel):
     """Structured output from Proposal Builder Agent."""
-    executive_summary: str = Field(description="Executive summary")
-    client_challenges: str = Field(description="Understanding client challenges section")
-    proposed_solution: str = Field(description="Proposed solution section")
-    benefits_value: str = Field(description="Benefits and value propositions section")
-    case_studies: str = Field(description="Case studies and success stories section")
-    implementation_approach: str = Field(description="Implementation approach section")
+    executive_summary: str = Field(description="Executive Summary section")
+    understanding_client_needs: str = Field(description="Understanding of Client Needs section")
+    proposed_solution: str = Field(description="Proposed Solution section")
+    solution_architecture: str = Field(description="Solution Architecture & Technology Stack section")
+    business_value_use_cases: str = Field(description="Business Value & Use Cases section")
+    benefits_roi: str = Field(description="Benefits & ROI Justification section")
+    implementation_roadmap: str = Field(description="Implementation Roadmap & Timeline section")
+    change_management_training: str = Field(description="Change Management & Training Strategy section")
+    security_compliance: str = Field(description="Security, Compliance & Data Governance section")
+    case_studies_credentials: str = Field(description="Case Studies & Delivery Credentials section")
+    commercial_model: str = Field(description="Commercial Model & Licensing Options section")
+    risks_assumptions: str = Field(description="Risks, Assumptions & Mitigation section")
+    next_steps_cta: str = Field(description="Next Steps & Call-to-Action section")
 
 
 # Alternative format for sections-based proposals

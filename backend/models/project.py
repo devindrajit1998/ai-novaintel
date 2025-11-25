@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 from db.database import Base
+from utils.timezone import now_utc_from_ist
 
 class ProjectStatus(str, enum.Enum):
     DRAFT = "Draft"
@@ -29,8 +30,8 @@ class Project(Base):
     description = Column(Text, nullable=True)
     status = Column(SQLEnum(ProjectStatus), default=ProjectStatus.DRAFT)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_utc_from_ist)
+    updated_at = Column(DateTime, default=now_utc_from_ist, onupdate=now_utc_from_ist)
     
     # Relationships
     owner = relationship("User", back_populates="projects")

@@ -267,9 +267,19 @@ export default function Dashboard() {
                 <h2 className="font-heading text-2xl font-semibold mb-1">Recent Projects</h2>
                 <p className="text-sm text-muted-foreground">Track and manage your ongoing proposals</p>
               </div>
-              <Button className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg" onClick={() => navigate("/new-project")}>
-                New Project
-              </Button>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  className="bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border-primary/20" 
+                  onClick={() => navigate("/quick-proposal")}
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Quick Proposal
+                </Button>
+                <Button className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg" onClick={() => navigate("/new-project")}>
+                  New Project
+                </Button>
+              </div>
             </div>
           </div>
           <div className="p-6">

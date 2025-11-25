@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, String, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from db.database import Base
+from utils.timezone import now_utc_from_ist
 
 class Proposal(Base):
     __tablename__ = "proposals"
@@ -20,8 +21,8 @@ class Proposal(Base):
     last_exported_at = Column(DateTime, nullable=True)
     export_format = Column(String, nullable=True)  # pdf, docx
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_utc_from_ist)
+    updated_at = Column(DateTime, default=now_utc_from_ist, onupdate=now_utc_from_ist)
     
     # Relationships
     project = relationship("Project", back_populates="proposals")

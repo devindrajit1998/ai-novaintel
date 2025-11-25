@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from db.database import Base
+from utils.timezone import now_utc_from_ist
 import enum
 
 class ProcessingStatus(str, enum.Enum):
@@ -26,8 +27,8 @@ class CaseStudyDocument(Base):
     error_message = Column(Text, nullable=True)
     document_metadata = Column(JSON, nullable=True)  # Store extracted metadata
     case_study_id = Column(Integer, ForeignKey("case_studies.id"), nullable=True)  # Link to created case study
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_utc_from_ist)
+    updated_at = Column(DateTime, default=now_utc_from_ist, onupdate=now_utc_from_ist)
     
     # Relationships
     user = relationship("User", backref="case_study_documents")

@@ -44,12 +44,32 @@ class GlobalWebSocketManager:
         """Send message to a specific user"""
         if user_id in self.active_connections:
             disconnected = set()
-            for connection in self.active_connections[user_id]:
+            for connection in list(self.active_connections[user_id]):  # Use list to avoid modification during iteration
                 try:
+                    # Check if WebSocket is in a valid state before sending
+                    if not hasattr(connection, 'client_state'):
+                        disconnected.add(connection)
+                        continue
+                    
+                    state_name = connection.client_state.name
+                    if state_name == "DISCONNECTED":
+                        disconnected.add(connection)
+                        continue
+                    
+                    # Only send if connection is CONNECTED
+                    if state_name != "CONNECTED":
+                        continue
+                    
                     await connection.send_json(message)
                 except Exception as e:
-                    print(f"Error sending to user {user_id}: {e}")
-                    disconnected.add(connection)
+                    error_str = str(e).lower()
+                    # Silently handle expected connection errors
+                    if "not connected" in error_str or "accept" in error_str or "disconnected" in error_str:
+                        disconnected.add(connection)
+                    else:
+                        # Log unexpected errors
+                        print(f"Error sending to user {user_id}: {e}")
+                        disconnected.add(connection)
             
             # Clean up disconnected connections
             for conn in disconnected:

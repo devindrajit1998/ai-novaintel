@@ -183,47 +183,81 @@ async def get_workflow_status(
             detail="Project not found"
         )
     
-    # Get workflow state from manager
-    state = workflow_manager.get_state_by_project(project_id)
+    # Check if insights exist first (workflow might have completed)
+    from models.insights import Insights
+    insights = db.query(Insights).filter(Insights.project_id == project_id).first()
     
-    if not state:
-        # Check if insights exist (workflow completed)
-        from models.insights import Insights
-        insights = db.query(Insights).filter(Insights.project_id == project_id).first()
-        if insights:
-            return {
-                "status": "completed",
-                "current_step": "completed",
-                "progress": {
-                    "rfp_analyzer": True,
-                    "challenge_extractor": insights.challenges is not None,
-                    "value_proposition": insights.value_propositions is not None,
-                    "discovery_question": insights.discovery_questions is not None,
-                    "case_study_matcher": insights.matching_case_studies is not None,
-                    "proposal_builder": insights.proposal_draft is not None,
-                }
-            }
+    if insights:
+        # Workflow completed - return completed status
+        # Check if we have any meaningful data (even if proposal_draft is missing)
+        has_data = (insights.executive_summary and len(str(insights.executive_summary)) > 0) or \
+                   (insights.challenges and len(insights.challenges) > 0) or \
+                   (insights.value_propositions and len(insights.value_propositions) > 0) or \
+                   insights.proposal_draft is not None
+        
         return {
-            "status": "not_started",
-            "current_step": None,
-            "progress": {}
+            "status": "completed",
+            "current_step": "completed",
+            "progress": {
+                "rfp_analyzer": insights.executive_summary is not None and len(str(insights.executive_summary)) > 0,
+                "challenge_extractor": insights.challenges is not None and len(insights.challenges) > 0 if isinstance(insights.challenges, list) else False,
+                "value_proposition": insights.value_propositions is not None and len(insights.value_propositions) > 0 if isinstance(insights.value_propositions, list) else False,
+                "discovery_question": insights.discovery_questions is not None,
+                "case_study_matcher": insights.matching_case_studies is not None and len(insights.matching_case_studies) > 0 if isinstance(insights.matching_case_studies, list) else False,
+                "proposal_builder": insights.proposal_draft is not None,
+            },
+            "has_data": has_data  # Indicate if we have meaningful data
         }
     
-    # Determine progress based on state
-    progress = {
-        "rfp_analyzer": state.get("rfp_summary") is not None,
-        "challenge_extractor": state.get("challenges") is not None,
-        "value_proposition": state.get("value_propositions") is not None,
-        "discovery_question": state.get("discovery_questions") is not None,
-        "case_study_matcher": state.get("matching_case_studies") is not None,
-        "proposal_builder": state.get("proposal_draft") is not None,
-    }
+    # Get workflow state from manager (for running workflows)
+    state = workflow_manager.get_state_by_project(project_id)
+    
+    if state:
+        # Workflow is running - determine progress based on state
+        progress = {
+            "rfp_analyzer": state.get("rfp_summary") is not None and state.get("rfp_summary") != False,
+            "challenge_extractor": state.get("challenges") is not None and len(state.get("challenges", [])) > 0,
+            "value_proposition": state.get("value_propositions") is not None and len(state.get("value_propositions", [])) > 0,
+            "discovery_question": state.get("discovery_questions") is not None,
+            "case_study_matcher": state.get("matching_case_studies") is not None and len(state.get("matching_case_studies", [])) > 0,
+            "proposal_builder": state.get("proposal_draft") is not None and state.get("proposal_draft") != False,
+        }
+        
+        # Check if workflow has errors
+        errors = state.get("errors", [])
+        if errors and len(errors) > 0:
+            return {
+                "status": "error",
+                "current_step": state.get("current_step", "unknown"),
+                "progress": progress,
+                "errors": errors[:5]  # Return first 5 errors
+            }
+        
+        return {
+            "status": "running",
+            "current_step": state.get("current_step", "start"),
+            "progress": progress,
+            "execution_log": state.get("execution_log", [])
+        }
+    
+    # No state and no insights - check if RFP document exists (workflow might not have started)
+    from models.rfp_document import RFPDocument
+    rfp_doc = db.query(RFPDocument).filter(RFPDocument.project_id == project_id).first()
+    
+    if rfp_doc:
+        # RFP exists but no workflow state - might be starting or failed to start
+        return {
+            "status": "pending",
+            "current_step": "initializing",
+            "progress": {},
+            "message": "Workflow is being initialized or may have failed to start"
+        }
     
     return {
-        "status": "running",
-        "current_step": state.get("current_step", "start"),
-        "progress": progress,
-        "execution_log": state.get("execution_log", [])
+        "status": "not_started",
+        "current_step": None,
+        "progress": {},
+        "message": "No RFP document found. Please upload an RFP first."
     }
 
 @router.get("/debug")

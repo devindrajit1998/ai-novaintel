@@ -60,6 +60,15 @@ async def get_insights(
         
         # Convert Insights model to response - ensure proper serialization
         try:
+            # Replace company name placeholders in proposal_draft before returning
+            from utils.proposal_utils import replace_placeholders_in_proposal_draft
+            company_name = current_user.company_name
+            if company_name and insights.proposal_draft:
+                insights.proposal_draft = replace_placeholders_in_proposal_draft(
+                    insights.proposal_draft, 
+                    company_name
+                )
+            
             # Use Pydantic model for proper serialization
             response_data = InsightsResponse.model_validate(insights)
             return response_data

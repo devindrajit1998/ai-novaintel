@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
+from utils.timezone import now_utc_from_ist, now_ist
 import sys
 from db.database import get_db
 from models.user import User
@@ -17,6 +18,7 @@ from api.schemas.proposal import (
     ProposalSaveDraftRequest,
     ProposalPreviewResponse,
     RegenerateSectionRequest,
+    AcceptRegenerationRequest,
     ProposalSubmitRequest,
     ProposalReviewRequest
 )
@@ -107,6 +109,14 @@ async def get_proposal_by_project(
             detail="Proposal not found for this project"
         )
     
+    # Replace company name placeholders in proposal sections before returning
+    from utils.proposal_utils import replace_company_placeholders
+    company_name = current_user.company_name
+    if company_name and proposal.sections:
+        for section in proposal.sections:
+            if isinstance(section, dict) and section.get("content"):
+                section["content"] = replace_company_placeholders(section["content"], company_name)
+    
     return proposal
 
 @router.get("/{proposal_id}", response_model=ProposalResponse)
@@ -135,6 +145,14 @@ async def get_proposal(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
         )
+    
+    # Replace company name placeholders in proposal sections before returning
+    from utils.proposal_utils import replace_company_placeholders
+    company_name = current_user.company_name
+    if company_name and proposal.sections:
+        for section in proposal.sections:
+            if isinstance(section, dict) and section.get("content"):
+                section["content"] = replace_company_placeholders(section["content"], company_name)
     
     return proposal
 
@@ -185,7 +203,7 @@ async def update_proposal(
             detail=f"Failed to update proposal: {str(e)}"
         )
 
-@router.post("/generate", response_model=ProposalResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/generate", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
 async def generate_proposal(
     request: ProposalGenerateRequest,
     db: Session = Depends(get_db),
@@ -284,18 +302,37 @@ async def generate_proposal(
                 ai_response_style=ai_response_style,
                 secure_mode=secure_mode
             )
+            
+            # Replace company name placeholders in sections
+            from utils.proposal_utils import replace_company_placeholders
+            company_name = current_user.company_name
+            if company_name and sections:
+                for section in sections:
+                    if isinstance(section, dict) and section.get("content"):
+                        section["content"] = replace_company_placeholders(section["content"], company_name)
+        
+        # Store old sections if regenerating
+        old_sections = existing_proposal.sections if existing_proposal else []
+        if old_sections is None:
+            old_sections = []
         
         if existing_proposal:
-            # Update existing proposal with new AI-generated content
-            existing_proposal.sections = sections
-            existing_proposal.template_type = request.template_type
-            existing_proposal.title = f"{project.client_name} - Proposal"
-            existing_proposal.updated_at = datetime.utcnow()
-            db.commit()
-            db.refresh(existing_proposal)
-            return existing_proposal
+            # Don't save yet - return both old and new for comparison
+            # The frontend will call accept-regeneration to save
+            return {
+                "id": existing_proposal.id,
+                "project_id": existing_proposal.project_id,
+                "title": f"{project.client_name} - Proposal",
+                "sections": sections,
+                "template_type": request.template_type,
+                "old_sections": old_sections,
+                "is_regeneration": True,
+                "status": existing_proposal.status,
+                "created_at": existing_proposal.created_at.isoformat() if existing_proposal.created_at else None,
+                "updated_at": existing_proposal.updated_at.isoformat() if existing_proposal.updated_at else None
+            }
         else:
-            # Create new proposal
+            # Create new proposal (no comparison needed for new proposals)
             new_proposal = Proposal(
                 project_id=request.project_id,
                 title=f"{project.client_name} - Proposal",
@@ -307,7 +344,9 @@ async def generate_proposal(
             db.commit()
             db.refresh(new_proposal)
             
-            return new_proposal
+            # Convert to dict for consistency with regeneration response
+            proposal_dict = ProposalResponse.model_validate(new_proposal).model_dump()
+            return proposal_dict
     except HTTPException:
         raise
     except Exception as e:
@@ -353,7 +392,7 @@ async def save_draft(
         if request.title:
             proposal.title = request.title
         
-        proposal.updated_at = datetime.utcnow()
+        proposal.updated_at = now_utc_from_ist()
         db.commit()
         db.refresh(proposal)
         
@@ -445,21 +484,23 @@ async def regenerate_section(
             case_studies=insights_dict["matching_case_studies"]
         )
         
-        # Update the section in the proposal
+        # Replace company name placeholders in new content
+        from utils.proposal_utils import replace_company_placeholders
+        company_name = current_user.company_name
+        if company_name:
+            new_content = replace_company_placeholders(new_content, company_name)
+        
+        # Get old content before updating
         sections = proposal.sections or []
-        updated_sections = []
+        old_content = None
         section_found = False
         
         for section in sections:
             section_id = section.get("id") if isinstance(section, dict) else None
             if section_id == request.section_id:
-                # Update this section
-                updated_section = section.copy() if isinstance(section, dict) else {"id": request.section_id, "title": request.section_title}
-                updated_section["content"] = new_content
-                updated_sections.append(updated_section)
+                old_content = section.get("content", "") if isinstance(section, dict) else ""
                 section_found = True
-            else:
-                updated_sections.append(section)
+                break
         
         if not section_found:
             raise HTTPException(
@@ -467,23 +508,100 @@ async def regenerate_section(
                 detail="Section not found in proposal"
             )
         
-        # Save updated sections
-        proposal.sections = updated_sections
-        proposal.updated_at = datetime.utcnow()
-        db.commit()
-        db.refresh(proposal)
-        
+        # Return both old and new content for comparison (don't save yet)
         return {
             "success": True,
             "section_id": request.section_id,
-            "content": new_content,
-            "message": "Section regenerated successfully"
+            "section_title": request.section_title,
+            "old_content": old_content,
+            "new_content": new_content,
+            "message": "Section regenerated successfully. Please review and accept to save."
         }
     
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error regenerating section: {str(e)}"
+        )
+
+@router.post("/accept-regeneration", response_model=Dict[str, Any])
+async def accept_regeneration(
+    request: AcceptRegenerationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Accept or reject a regenerated proposal/section.
+    If accept=True, saves the new version. If accept=False, keeps the old version.
+    For section regeneration, the new_content should be passed in the request body.
+    """
+    try:
+        proposal = db.query(Proposal).filter(Proposal.id == request.proposal_id).first()
+        
+        if not proposal:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Proposal not found"
+            )
+        
+        # Verify project ownership
+        project = db.query(Project).filter(
+            Project.id == proposal.project_id,
+            Project.owner_id == current_user.id
+        ).first()
+        
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied"
+            )
+        
+        if request.accept:
+            # Accept new version
+            if request.section_id and request.new_content:
+                # Section regeneration - update specific section with new content
+                sections = proposal.sections or []
+                updated_sections = []
+                for section in sections:
+                    if isinstance(section, dict) and section.get("id") == request.section_id:
+                        # Update with new content
+                        updated_section = section.copy()
+                        updated_section["content"] = request.new_content
+                        updated_sections.append(updated_section)
+                    else:
+                        updated_sections.append(section)
+                proposal.sections = updated_sections
+            elif request.new_sections:
+                # Full proposal regeneration - update all sections
+                proposal.sections = request.new_sections
+            proposal.updated_at = now_utc_from_ist()
+            db.commit()
+            db.refresh(proposal)
+            # Convert proposal to dict for serialization
+            proposal_dict = ProposalResponse.model_validate(proposal).model_dump()
+            return {
+                "success": True,
+                "message": "Regeneration accepted and saved",
+                "proposal": proposal_dict
+            }
+        else:
+            # Reject new version - keep old version (proposal is already unchanged)
+            db.refresh(proposal)
+            # Convert proposal to dict for serialization
+            proposal_dict = ProposalResponse.model_validate(proposal).model_dump()
+            return {
+                "success": True,
+                "message": "Regeneration rejected, keeping original version",
+                "proposal": proposal_dict
+            }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error accepting regeneration: {str(e)}"
         )
 
 @router.get("/{proposal_id}/preview", response_model=ProposalPreviewResponse)
@@ -564,14 +682,15 @@ async def export_pdf(
             title=proposal.title,
             sections=proposal.sections or [],
             project_name=project.name,
-            client_name=project.client_name
+            client_name=project.client_name,
+            company_name=current_user.company_name
         )
         
         # Save export
         file_path = proposal_exporter.save_export(buffer, "pdf", proposal_id)
         
         # Update metadata
-        proposal.last_exported_at = datetime.utcnow()
+        proposal.last_exported_at = now_utc_from_ist()
         proposal.export_format = "pdf"
         db.commit()
         
@@ -622,14 +741,15 @@ async def export_docx(
             title=proposal.title,
             sections=proposal.sections or [],
             project_name=project.name,
-            client_name=project.client_name
+            client_name=project.client_name,
+            company_name=current_user.company_name
         )
         
         # Save export
         file_path = proposal_exporter.save_export(buffer, "docx", proposal_id)
         
         # Update metadata
-        proposal.last_exported_at = datetime.utcnow()
+        proposal.last_exported_at = now_utc_from_ist()
         proposal.export_format = "docx"
         db.commit()
         
@@ -680,14 +800,15 @@ async def export_pptx(
             title=proposal.title,
             sections=proposal.sections or [],
             project_name=project.name,
-            client_name=project.client_name
+            client_name=project.client_name,
+            company_name=current_user.company_name
         )
         
         # Save export
         file_path = proposal_exporter.save_export(buffer, "pptx", proposal_id)
         
         # Update metadata
-        proposal.last_exported_at = datetime.utcnow()
+        proposal.last_exported_at = now_utc_from_ist()
         proposal.export_format = "pptx"
         db.commit()
         
@@ -745,7 +866,7 @@ async def submit_proposal(
         # Update status
         proposal.status = "pending_approval"
         proposal.submitter_message = request.message
-        proposal.submitted_at = datetime.utcnow()
+        proposal.submitted_at = now_utc_from_ist()
         
         # Always send email to all admins (pre_sales_manager role)
         ADMIN_ROLE = "pre_sales_manager"
@@ -765,7 +886,8 @@ async def submit_proposal(
         
         # Prepare proposal data for email
         proposal_sections = proposal.sections if proposal.sections else []
-        submitted_at_str = proposal.submitted_at.strftime("%Y-%m-%d %H:%M:%S UTC") if proposal.submitted_at else None
+        from utils.timezone import format_ist
+        submitted_at_str = format_ist(proposal.submitted_at, "%Y-%m-%d %H:%M:%S IST") if proposal.submitted_at else None
         
         # Send email and create notification for all admins
         for admin in admins:
@@ -903,7 +1025,7 @@ async def review_proposal(
             proposal.status = "on_hold"
         
         proposal.admin_feedback = request.feedback
-        proposal.reviewed_at = datetime.utcnow()
+        proposal.reviewed_at = now_utc_from_ist()
         proposal.reviewed_by = current_user.id
         
         # Notify the submitter
@@ -1050,9 +1172,9 @@ async def admin_analytics(
     total_managers = db.query(func.count(User.id)).filter(User.role == MANAGER_ROLE, User.is_active == True).scalar() or 0
     
     # Recent activity (last 7 days)
-    from datetime import timedelta, date
-    seven_days_ago = datetime.utcnow() - timedelta(days=7)
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    from datetime import date
+    seven_days_ago = now_utc_from_ist() - timedelta(days=7)
+    thirty_days_ago = now_utc_from_ist() - timedelta(days=30)
     recent_submissions = db.query(func.count(Proposal.id)).filter(
         Proposal.submitted_at >= seven_days_ago
     ).scalar() or 0
@@ -1066,7 +1188,7 @@ async def admin_analytics(
     daily_submissions = []
     daily_approvals = []
     for i in range(30):
-        day = datetime.utcnow() - timedelta(days=30-i)
+        day = now_utc_from_ist() - timedelta(days=30-i)
         day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day.replace(hour=23, minute=59, second=59, microsecond=999999)
         
@@ -1098,7 +1220,7 @@ async def admin_analytics(
     # Weekly data (last 4 weeks)
     weekly_data = []
     for i in range(4):
-        week_start = datetime.utcnow() - timedelta(days=28-i*7)
+        week_start = now_utc_from_ist() - timedelta(days=28-i*7)
         week_end = week_start + timedelta(days=6)
         week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
         week_end = week_end.replace(hour=23, minute=59, second=59, microsecond=999999)

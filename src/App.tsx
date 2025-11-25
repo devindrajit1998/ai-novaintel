@@ -16,6 +16,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import NewProject from "./pages/NewProject";
+import QuickProposal from "./pages/QuickProposal";
 import Insights from "./pages/Insights";
 import ProposalBuilder from "./pages/ProposalBuilder";
 import CaseStudies from "./pages/CaseStudies";
@@ -81,6 +82,14 @@ const App = () => (
               element={
                 <AnalystOnlyRoute>
                   <NewProject />
+                </AnalystOnlyRoute>
+              }
+            />
+            <Route
+              path="/quick-proposal"
+              element={
+                <AnalystOnlyRoute>
+                  <QuickProposal />
                 </AnalystOnlyRoute>
               }
             />

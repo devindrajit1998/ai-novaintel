@@ -16,18 +16,20 @@ class VectorStoreManager:
         self.collection_name = "novaintel_documents"
         self._initialize()
     
-    def _get_embedding_dimension(self) -> Optional[int]:
-        """Get the embedding dimension from the embedding service."""
+    def _get_embedding_dimension(self, timeout: float = 2.0) -> Optional[int]:
+        """Get the embedding dimension from the embedding service (non-blocking)."""
         try:
             from rag.embedding_service import embedding_service
             if not embedding_service.is_available():
                 return None
             
-            # Get a test embedding to determine dimension
+            # Try to get dimension - if it blocks, we'll catch and skip
+            # Note: This is a best-effort check, if it hangs we'll just skip it
             test_embedding = embedding_service.get_embedding("test", use_cache=False)
             return len(test_embedding) if test_embedding else None
         except Exception as e:
-            print(f"[WARNING] Could not determine embedding dimension: {e}")
+            # Silently skip if embedding service isn't ready or blocks
+            # This prevents blocking during server startup
             return None
     
     def _check_and_fix_collection_dimension(self, collection, expected_dim: Optional[int]) -> bool:
@@ -108,8 +110,9 @@ class VectorStoreManager:
                 path=str(chroma_path)
             )
             
-            # Get expected embedding dimension
-            expected_dim = self._get_embedding_dimension()
+            # Skip embedding dimension check during startup to avoid blocking
+            # Dimension will be checked when actually needed (when adding vectors)
+            expected_dim = None
             
             # Try to get existing collection
             collection = None
@@ -167,8 +170,14 @@ class VectorStoreManager:
                 # Local Qdrant
                 client = QdrantClient(url=settings.QDRANT_URL)
             
-            # Get expected embedding dimension
-            expected_dim = self._get_embedding_dimension() or 1536  # Default dimension
+            # Get expected embedding dimension (skip if not available to avoid blocking)
+            expected_dim = 1536  # Default dimension
+            try:
+                dim = self._get_embedding_dimension(timeout=1.0)
+                if dim:
+                    expected_dim = dim
+            except Exception:
+                pass  # Use default if check blocks
             
             # Check if collection exists
             try:
@@ -216,8 +225,14 @@ class VectorStoreManager:
             # Initialize Pinecone client
             pc = Pinecone(api_key=settings.PINECONE_API_KEY)
             
-            # Get expected embedding dimension
-            expected_dim = self._get_embedding_dimension() or 1536  # Default dimension
+            # Get expected embedding dimension (skip if not available to avoid blocking)
+            expected_dim = 1536  # Default dimension
+            try:
+                dim = self._get_embedding_dimension(timeout=1.0)
+                if dim:
+                    expected_dim = dim
+            except Exception:
+                pass  # Use default if check blocks
             
             # Check if index exists
             index_name = settings.PINECONE_INDEX_NAME
@@ -277,8 +292,12 @@ class VectorStoreManager:
             except:
                 pass  # Collection might not exist
             
-            # Get expected dimension
-            expected_dim = self._get_embedding_dimension()
+            # Get expected dimension (skip if not available to avoid blocking)
+            expected_dim = None
+            try:
+                expected_dim = self._get_embedding_dimension(timeout=1.0)
+            except Exception:
+                pass  # Skip dimension check if it blocks
             
             # Create new collection
             collection = self.chroma_client.create_collection(

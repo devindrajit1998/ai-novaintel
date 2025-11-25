@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MarkdownText } from "@/components/ui/markdown-text";
 import { Switch } from "@/components/ui/switch";
 import { DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -79,19 +79,46 @@ export default function Insights() {
   });
 
   // Track if we're waiting for analysis
-  const isAnalyzing = !!projectId && (!insights || !insights.executive_summary);
-
+  // Check both insights and workflow status to determine if we're still analyzing
+  const hasInsights = insights && (insights.executive_summary || insights.challenges || insights.proposal_draft);
+  
   // Poll for workflow status to show dynamic progress
   const { data: workflowStatus } = useQuery({
     queryKey: ["workflow-status", projectId],
     queryFn: () => apiClient.getWorkflowStatus(projectId),
-    enabled: !!projectId && isAnalyzing,
-    refetchInterval: 2000, // Poll every 2 seconds while analyzing
+    enabled: !!projectId && !hasInsights, // Only poll if we don't have insights yet
+    refetchInterval: (query) => {
+      // Stop polling if workflow is completed
+      const status = query.state.data?.status;
+      if (status === "completed" || status === "error") {
+        return false;
+      }
+      return 2000; // Poll every 2 seconds while analyzing
+    },
     retry: false,
   });
   
+  // Determine if we're analyzing based on both insights and workflow status
+  const isAnalyzing = !!projectId && !hasInsights && 
+                     (workflowStatus?.status === "running" || 
+                      workflowStatus?.status === "pending" || 
+                      workflowStatus?.status === "not_started" ||
+                      !workflowStatus);
+  
   // Check for workflow errors
   const [workflowError, setWorkflowError] = useState<string | null>(null);
+  
+  // Update error state when workflow status changes
+  useEffect(() => {
+    if (workflowStatus?.status === "error" || workflowStatus?.status === "failed") {
+      const errors = workflowStatus.errors || [];
+      setWorkflowError(errors.length > 0 ? errors[0] : "Workflow failed");
+    } else if (workflowStatus?.status === "completed") {
+      setWorkflowError(null);
+      // Refetch insights when workflow completes
+      refetch();
+    }
+  }, [workflowStatus, refetch]);
   
   // If we've been loading for more than 5 minutes, show an error
   const [loadStartTime] = useState(Date.now());

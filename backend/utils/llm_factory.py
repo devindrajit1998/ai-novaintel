@@ -128,7 +128,18 @@ class GeminiLangChainWrapper(Runnable):
                 temperature=self.temperature
             )
         
-        return GeminiResponse(result.get("content", ""), result.get("error"))
+        # Return the content as a string for LangChain compatibility
+        # LangChain output parsers (PydanticOutputParser) expect a string, not a custom object
+        content = result.get("content", "")
+        error = result.get("error")
+        
+        if error:
+            # If there's an error, raise an exception
+            # The output parser will handle the error appropriately
+            raise ValueError(f"LLM error: {error}")
+        
+        # Return as string directly - this is what LangChain output parsers expect
+        return content
 
 class GeminiResponse:
     """Response wrapper for LangChain compatibility."""
@@ -136,9 +147,14 @@ class GeminiResponse:
     def __init__(self, content: str, error: Optional[str] = None):
         self.content = content
         self.error = error
+        # Add 'text' attribute for LangChain compatibility
+        self.text = content
     
     def __str__(self):
         return self.content if self.content else ""
+    
+    def __repr__(self):
+        return f"GeminiResponse(content={self.content[:50]}..., error={self.error})"
 
 def get_llm(
     provider: Optional[str] = None,

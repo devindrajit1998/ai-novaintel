@@ -279,7 +279,8 @@ async def verify_email(token: str, db: Session = Depends(get_db)):
         # Verify email
         user.email_verified = True
         user.is_active = True
-        user.email_verified_at = datetime.utcnow()
+        from utils.timezone import now_utc_from_ist
+        user.email_verified_at = now_utc_from_ist()
         user.email_verification_token = None
         db.commit()
         db.refresh(user)
@@ -356,7 +357,8 @@ async def update_current_user_profile(
     if user_update.role is not None:
         current_user.role = user_update.role
     
-    current_user.updated_at = datetime.utcnow()
+    from utils.timezone import now_utc_from_ist
+    current_user.updated_at = now_utc_from_ist()
     db.commit()
     db.refresh(current_user)
     
@@ -536,7 +538,8 @@ async def update_user(
     if user_update.role is not None:
         user.role = user_update.role
     
-    user.updated_at = datetime.utcnow()
+    from utils.timezone import now_utc_from_ist
+    user.updated_at = now_utc_from_ist()
     db.commit()
     db.refresh(user)
     
@@ -587,7 +590,8 @@ async def toggle_user_active(
         )
     
     user.is_active = is_active
-    user.updated_at = datetime.utcnow()
+    from utils.timezone import now_utc_from_ist
+    user.updated_at = now_utc_from_ist()
     db.commit()
     db.refresh(user)
     

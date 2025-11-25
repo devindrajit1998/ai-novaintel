@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from db.database import Base
+from utils.timezone import now_utc_from_ist
 
 class User(Base):
     __tablename__ = "users"
@@ -24,8 +25,8 @@ class User(Base):
     # Company Information
     company_name = Column(String, nullable=True)  # Company name for proposals
     company_logo = Column(String, nullable=True)  # URL or path to company logo
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_utc_from_ist)
+    updated_at = Column(DateTime, default=now_utc_from_ist, onupdate=now_utc_from_ist)
     
     # Relationships
     projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")

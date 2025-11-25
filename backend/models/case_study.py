@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from db.database import Base
+from utils.timezone import now_utc_from_ist
 
 class CaseStudy(Base):
     __tablename__ = "case_studies"
@@ -16,8 +17,8 @@ class CaseStudy(Base):
     case_study_document_id = Column(Integer, ForeignKey("case_study_documents.id"), nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)  # Link to source project
     indexed = Column(Boolean, default=False)  # Whether this case study is indexed in RAG
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_utc_from_ist)
+    updated_at = Column(DateTime, default=now_utc_from_ist, onupdate=now_utc_from_ist)
     
     # Relationships
     # User who created this case study

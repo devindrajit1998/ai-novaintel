@@ -130,7 +130,8 @@ class ProposalService:
         # Update status
         proposal.status = "pending_approval"
         proposal.submitter_message = message
-        proposal.submitted_at = datetime.utcnow()
+        from utils.timezone import now_utc_from_ist
+        proposal.submitted_at = now_utc_from_ist()
         
         # Get project for email
         project = self.project_repo.get_by_id(proposal.project_id)
@@ -240,7 +241,8 @@ class ProposalService:
         )
         
         if proposal:
-            proposal.reviewed_at = datetime.utcnow()
+            from utils.timezone import now_utc_from_ist
+            proposal.reviewed_at = now_utc_from_ist()
             self.db.commit()
             self.db.refresh(proposal)
         

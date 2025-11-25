@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, BigI
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from db.database import Base
+from utils.timezone import now_utc_from_ist
 
 class RFPDocument(Base):
     __tablename__ = "rfp_documents"
@@ -13,7 +14,7 @@ class RFPDocument(Base):
     file_path = Column(String, nullable=False)
     file_size = Column(BigInteger, nullable=False)  # in bytes
     file_type = Column(String, nullable=False)  # pdf, docx
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_at = Column(DateTime, default=now_utc_from_ist)
     
     # Extracted metadata
     extracted_text = Column(Text, nullable=True)

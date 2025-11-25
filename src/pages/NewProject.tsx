@@ -25,6 +25,7 @@ export default function NewProject() {
   const [projectType, setProjectType] = useState("");
   const [description, setDescription] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [workflowRunning, setWorkflowRunning] = useState(false);
 
   // Options for searchable dropdowns
   const industryOptions = [
@@ -115,13 +116,23 @@ export default function NewProject() {
       return project;
     },
     onSuccess: async (project) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
       toast.success("Project created successfully!");
       
       // If file is selected, upload it
       if (selectedFile && project.id) {
         try {
-          const uploadResult = await apiClient.uploadRFP(project.id, selectedFile);
-          toast.success("RFP uploaded successfully!");
+          // Upload with auto-index enabled (but not auto-analyze, since we need to use selected tasks)
+          const uploadResult = await apiClient.uploadRFP(project.id, selectedFile, {
+            auto_index: true,
+            auto_analyze: false  // We'll run workflow manually with selected tasks
+          });
+          
+          if (uploadResult.indexed) {
+            toast.success("RFP uploaded and indexed successfully!");
+          } else {
+            toast.success("RFP uploaded successfully!");
+          }
           
           // Navigate to insights page immediately after upload
           const tasksParam = new URLSearchParams();
@@ -131,55 +142,68 @@ export default function NewProject() {
           if (selectedTasks.cases) tasksParam.set('cases', 'true');
           navigate(`/insights?${tasksParam.toString()}`);
           
-          // Build index and run workflow in the background (don't await)
-          // User will see loader on insights page while these run
-          (async () => {
-            try {
-              console.log("Building index...");
-              const indexResult = await apiClient.buildIndex(uploadResult.rfp_document_id);
-              console.log("Index build result:", indexResult);
-              
-              // Check if index building was successful
-              if (!indexResult.success) {
-                const errorMsg = indexResult.error || indexResult.message || "Index building failed. Please check the RFP document format.";
-                console.error(`Index building failed: ${errorMsg}`);
-                toast.error(`Index building failed: ${errorMsg}`);
-                return; // Stop here, don't run workflow
-              }
-              
-              console.log("Index built successfully!");
-              
-              // Run workflow if tasks are selected
-              if (selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases) {
-                try {
-                  console.log(`Starting workflow for project ${project.id}, RFP document ${uploadResult.rfp_document_id}`);
-                  const workflowResult = await apiClient.runWorkflow(project.id, uploadResult.rfp_document_id, selectedTasks);
-                  console.log("Workflow result:", workflowResult);
-                  
-                  if (!workflowResult.success) {
-                    console.error(`Workflow failed: ${workflowResult.error || 'Unknown error'}`);
-                    toast.error(`Analysis failed: ${workflowResult.error || 'Unknown error'}`);
-                  } else {
-                    toast.success("Analysis started! Results will appear shortly.");
+          // Run workflow in the background if tasks are selected (only once)
+          if ((selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases) && !workflowRunning) {
+            setWorkflowRunning(true);
+            (async () => {
+              try {
+                // Ensure index is built before running workflow
+                if (!uploadResult.indexed) {
+                  // Poll for index completion (max 30 seconds)
+                  let indexReady = false;
+                  for (let i = 0; i < 15; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    try {
+                      const ragStatus = await apiClient.getRagStatus(project.id);
+                      // Check if index is ready (either indexed_documents_count or next_steps.ready)
+                      if (ragStatus.indexed_documents_count > 0 || ragStatus.next_steps?.ready) {
+                        indexReady = true;
+                        break;
+                      }
+                    } catch (e) {
+                      // Continue polling
+                    }
                   }
-                } catch (error: any) {
-                  const errorMessage = error.message || error.detail || 'Unknown error';
-                  console.error(`Failed to start analysis: ${errorMessage}`);
-                  toast.error(`Failed to start analysis: ${errorMessage}`);
+                  
+                  if (!indexReady) {
+                    toast.error("Index building is taking too long. Please try again later.");
+                    setWorkflowRunning(false);
+                    return;
+                  }
                 }
-              } else {
-                console.log("No tasks selected, skipping workflow");
+                
+                console.log(`Starting workflow for project ${project.id}, RFP document ${uploadResult.rfp_document_id}`);
+                const workflowResult = await apiClient.runWorkflow(project.id, uploadResult.rfp_document_id, selectedTasks);
+                console.log("Workflow result:", workflowResult);
+                
+                if (!workflowResult.success) {
+                  console.error(`Workflow failed: ${workflowResult.error || 'Unknown error'}`);
+                  toast.error(`Analysis failed: ${workflowResult.error || 'Unknown error'}`);
+                } else {
+                  toast.success("Analysis started! Results will appear shortly.");
+                }
+              } catch (error: any) {
+                const errorMessage = error.message || error.detail || 'Unknown error';
+                console.error(`Failed to start analysis: ${errorMessage}`);
+                toast.error(`Failed to start analysis: ${errorMessage}`);
+              } finally {
+                setWorkflowRunning(false);
               }
-            } catch (error: any) {
-              console.error(`Failed to build index: ${error.message}`);
-              toast.error(`Failed to build index: ${error.message}`);
+            })();
+          } else {
+            if (workflowRunning) {
+              console.log("Workflow already running, skipping duplicate request");
+            } else {
+              console.log("No tasks selected, skipping workflow");
             }
-          })();
+          }
         } catch (error: any) {
           toast.error(`Failed to upload RFP: ${error.message}`);
+          // Still navigate to dashboard even if upload fails
+          navigate("/dashboard");
         }
       } else {
-        queryClient.invalidateQueries({ queryKey: ["projects"] });
+        // No file selected - just navigate to dashboard
         navigate("/dashboard");
       }
     },
@@ -189,16 +213,35 @@ export default function NewProject() {
   });
 
   const handleAnalyze = async () => {
-    if (!projectId || !selectedFile) {
-      // Create project first
+    // If no project created yet, create it first
+    if (!projectId) {
+      if (!selectedFile) {
+        toast.error("Please select an RFP file to analyze");
+        return;
+      }
+      // Create project first, then handleAnalyze will be called again via onSuccess
       createProjectMutation.mutate();
+      return;
+    }
+    
+    // If no file selected, show error
+    if (!selectedFile) {
+      toast.error("Please select an RFP file to analyze");
       return;
     }
 
     try {
-      // Upload file if not already uploaded
-      const uploadResult = await apiClient.uploadRFP(projectId, selectedFile);
-      toast.success("RFP uploaded successfully!");
+      // Upload file with auto-index enabled (but not auto-analyze, since we need to use selected tasks)
+      const uploadResult = await apiClient.uploadRFP(projectId, selectedFile, {
+        auto_index: true,
+        auto_analyze: false  // We'll run workflow manually with selected tasks
+      });
+      
+      if (uploadResult.indexed) {
+        toast.success("RFP uploaded and indexed successfully!");
+      } else {
+        toast.success("RFP uploaded successfully!");
+      }
       
       // Navigate to insights page immediately after upload
       const tasksParam = new URLSearchParams();
@@ -208,50 +251,61 @@ export default function NewProject() {
       if (selectedTasks.cases) tasksParam.set('cases', 'true');
       navigate(`/insights?${tasksParam.toString()}`);
       
-      // Build index and run workflow in the background (don't await)
-      // User will see loader on insights page while these run
-      (async () => {
-        try {
-          console.log("Building index...");
-          const indexResult = await apiClient.buildIndex(uploadResult.rfp_document_id);
-          console.log("Index build result:", indexResult);
-          
-          // Check if index building was successful
-          if (!indexResult.success) {
-            const errorMsg = indexResult.message || "Index building failed. Please check the RFP document format.";
-            console.error(`Index building failed: ${errorMsg}`);
-            toast.error(`Index building failed: ${errorMsg}`);
-            return; // Stop here, don't run workflow
-          }
-          
-          console.log("Index built successfully!");
-          
-          // Run workflow if tasks are selected
-          if (selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases) {
-            try {
-              console.log(`Starting workflow for project ${projectId}, RFP document ${uploadResult.rfp_document_id}`);
-              const workflowResult = await apiClient.runWorkflow(projectId, uploadResult.rfp_document_id, selectedTasks);
-              console.log("Workflow result:", workflowResult);
-              
-              if (!workflowResult.success) {
-                console.error(`Workflow failed: ${workflowResult.error || 'Unknown error'}`);
-                toast.error(`Analysis failed: ${workflowResult.error || 'Unknown error'}`);
-              } else {
-                toast.success("Analysis started! Results will appear shortly.");
+      // Run workflow in the background if tasks are selected (only once)
+      if ((selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases) && !workflowRunning) {
+        setWorkflowRunning(true);
+        (async () => {
+          try {
+            // Ensure index is built before running workflow
+            if (!uploadResult.indexed) {
+              // Poll for index completion (max 30 seconds)
+              let indexReady = false;
+              for (let i = 0; i < 15; i++) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                try {
+                  const ragStatus = await apiClient.getRagStatus(projectId);
+                  // Check if index is ready (either indexed_documents_count or next_steps.ready)
+                  if (ragStatus.indexed_documents_count > 0 || ragStatus.next_steps?.ready) {
+                    indexReady = true;
+                    break;
+                  }
+                } catch (e) {
+                  // Continue polling
+                }
               }
-            } catch (error: any) {
-              const errorMessage = error.message || error.detail || 'Unknown error';
-              console.error(`Failed to start analysis: ${errorMessage}`);
-              toast.error(`Failed to start analysis: ${errorMessage}`);
+              
+              if (!indexReady) {
+                toast.error("Index building is taking too long. Please try again later.");
+                setWorkflowRunning(false);
+                return;
+              }
             }
-          } else {
-            console.log("No tasks selected, skipping workflow");
+            
+            console.log(`Starting workflow for project ${projectId}, RFP document ${uploadResult.rfp_document_id}`);
+            const workflowResult = await apiClient.runWorkflow(projectId, uploadResult.rfp_document_id, selectedTasks);
+            console.log("Workflow result:", workflowResult);
+            
+            if (!workflowResult.success) {
+              console.error(`Workflow failed: ${workflowResult.error || 'Unknown error'}`);
+              toast.error(`Analysis failed: ${workflowResult.error || 'Unknown error'}`);
+            } else {
+              toast.success("Analysis started! Results will appear shortly.");
+            }
+          } catch (error: any) {
+            const errorMessage = error.message || error.detail || 'Unknown error';
+            console.error(`Failed to start analysis: ${errorMessage}`);
+            toast.error(`Failed to start analysis: ${errorMessage}`);
+          } finally {
+            setWorkflowRunning(false);
           }
-        } catch (error: any) {
-          console.error(`Failed to build index: ${error.message}`);
-          toast.error(`Failed to build index: ${error.message}`);
+        })();
+      } else {
+        if (workflowRunning) {
+          console.log("Workflow already running, skipping duplicate request");
+        } else {
+          console.log("No tasks selected, skipping workflow");
         }
-      })();
+      }
     } catch (error: any) {
       toast.error(error.message || "Upload failed");
     }
@@ -437,15 +491,17 @@ export default function NewProject() {
                   size="lg"
                   onClick={() => {
                     if (!projectId) {
+                      // Create project without file - will navigate to dashboard in onSuccess
                       createProjectMutation.mutate();
                     } else {
+                      // Project already exists, just navigate to dashboard
                       queryClient.invalidateQueries({ queryKey: ["projects"] });
                       navigate("/dashboard");
                     }
                   }}
-                  disabled={createProjectMutation.isPending}
+                  disabled={createProjectMutation.isPending || !clientName || !industry || !region || !projectType}
                 >
-                  Save Draft
+                  {createProjectMutation.isPending ? "Creating..." : "Save Draft"}
                 </Button>
               </div>
             </Card>

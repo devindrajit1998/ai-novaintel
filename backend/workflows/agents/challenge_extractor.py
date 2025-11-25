@@ -58,19 +58,28 @@ class ChallengeExtractorAgent:
         
         # Set up structured output parser
         output_parser = PydanticOutputParser(pydantic_object=ChallengesOutput)
-        format_instructions = output_parser.get_format_instructions()
+        
+        # Simple format instructions without JSON schema to avoid template parsing issues
+        # Use escaped curly braces to prevent LangChain from treating JSON field names as template variables
+        format_instructions_simple = """Return your response as a valid JSON object with a challenges array. Each challenge should have:
+- challenge: Description of the challenge
+- type: One of business, technical, operational, or compliance
+- impact: One of high, medium, or low
+- category: Optional category name
+
+Example structure: {{"challenges": [{{"challenge": "...", "type": "...", "impact": "...", "category": "..."}}]}}"""
+        
         system_prompt = get_few_shot_challenge_extractor_prompt()
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", f"""{system_prompt}
+            ("system", system_prompt + """
 
 For each challenge, provide:
 - Challenge description
 - Type (Business/Technical/Compliance/Operational)
 - Impact/Importance (High/Medium/Low)
 - Category (optional)
-
-{format_instructions}"""),
+"""),
             ("user", """Based on the following RFP summary, identify the key challenges:
 
 RFP Summary:
@@ -78,6 +87,8 @@ RFP Summary:
 
 Business Objectives:
 {objectives}
+
+{format_instructions}
 
 Provide challenges in the specified JSON format.""")
         ])
@@ -87,7 +98,7 @@ Provide challenges in the specified JSON format.""")
             response = chain.invoke({
                 "rfp_summary": rfp_summary or "No summary available",
                 "objectives": objectives_text or "No objectives specified",
-                "format_instructions": format_instructions
+                "format_instructions": format_instructions_simple
             })
             
             # Response is already parsed as Pydantic model

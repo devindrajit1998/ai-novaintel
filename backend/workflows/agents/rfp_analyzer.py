@@ -76,20 +76,31 @@ class RFPAnalyzerAgent:
         # Set up structured output parser
         output_parser = PydanticOutputParser(pydantic_object=RFPAnalysisOutput)
         
-        # Build prompt with structured output instructions and few-shot examples
-        format_instructions = output_parser.get_format_instructions()
+        # Create a simple format instruction without JSON schema examples to avoid template parsing issues
+        # The PydanticOutputParser will handle the actual parsing, we just need to tell the LLM the structure
+        # Use escaped curly braces to prevent LangChain from treating JSON field names as template variables
+        format_instructions_simple = """Return your response as a valid JSON object with the following structure:
+- rfp_summary: A 2-3 paragraph executive summary
+- context_overview: Business context and background information
+- business_objectives: An array of business objectives (strings)
+- project_scope: Description of the project scope
+
+Example format: {{"rfp_summary": "...", "context_overview": "...", "business_objectives": [...], "project_scope": "..."}}
+
+Ensure the JSON is valid and properly formatted."""
+        
         system_prompt = get_few_shot_rfp_analyzer_prompt()
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", f"""{system_prompt}
-
-{format_instructions}"""),
+            ("system", system_prompt),
             ("user", """Analyze the following RFP document:
 
 RFP Document:
 {rfp_text}
 
 {context_section}
+
+{format_instructions}
 
 Provide your analysis in the specified JSON format.""")
         ])
@@ -107,7 +118,7 @@ Provide your analysis in the specified JSON format.""")
             response = chain.invoke({
                 "rfp_text": rfp_text[:10000],  # Limit text length
                 "context_section": context_section,
-                "format_instructions": format_instructions
+                "format_instructions": format_instructions_simple
             })
             
             print(f"    [RFP Analyzer] LLM response received: {type(response)}")

@@ -41,11 +41,32 @@ class ConnectionManager:
     async def send_personal_message(self, message: dict, user_id: int):
         if user_id in self.active_connections:
             disconnected = set()
-            for connection in self.active_connections[user_id]:
+            for connection in list(self.active_connections[user_id]):  # Use list to avoid modification during iteration
                 try:
+                    # Check if WebSocket is in a valid state before sending
+                    if not hasattr(connection, 'client_state'):
+                        disconnected.add(connection)
+                        continue
+                    
+                    state_name = connection.client_state.name
+                    if state_name == "DISCONNECTED":
+                        disconnected.add(connection)
+                        continue
+                    
+                    # Only send if connection is CONNECTED
+                    if state_name != "CONNECTED":
+                        continue
+                    
                     await connection.send_json(message)
-                except:
-                    disconnected.add(connection)
+                except Exception as e:
+                    error_str = str(e).lower()
+                    # Silently handle expected connection errors
+                    if "not connected" in error_str or "accept" in error_str or "disconnected" in error_str:
+                        disconnected.add(connection)
+                    else:
+                        # Log unexpected errors
+                        print(f"Error sending to user {user_id}: {e}")
+                        disconnected.add(connection)
             # Clean up disconnected connections
             for conn in disconnected:
                 self.active_connections[user_id].discard(conn)
@@ -109,6 +130,10 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, token: str = No
         
         await manager.connect(websocket, user.id)
         
+        # Small delay to ensure connection is fully established
+        import asyncio
+        await asyncio.sleep(0.1)
+        
         # Get user's conversations and add to manager
         conversations = db.query(ConversationParticipant).filter(
             ConversationParticipant.user_id == user.id
@@ -116,15 +141,24 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, token: str = No
         for participant in conversations:
             manager.add_user_to_conversation(user.id, participant.conversation_id)
         
-        # Send connection confirmation
-        await manager.send_personal_message({
-            "type": "connection",
-            "status": "connected",
-            "user_id": user.id
-        }, user.id)
+        # Send connection confirmation (only if connection is still valid)
+        try:
+            if websocket.client_state.name == "CONNECTED":
+                await manager.send_personal_message({
+                    "type": "connection",
+                    "status": "connected",
+                    "user_id": user.id
+                }, user.id)
+        except Exception:
+            # Silently handle connection confirmation errors
+            pass
         
         while True:
             try:
+                # Check connection state before receiving
+                if not hasattr(websocket, 'client_state') or websocket.client_state.name != "CONNECTED":
+                    break
+                
                 data = await websocket.receive_text()
                 try:
                     message_data = json.loads(data)
@@ -162,7 +196,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, token: str = No
                         # Update conversation updated_at
                         conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
                         if conversation:
-                            conversation.updated_at = datetime.utcnow()
+                            from utils.timezone import now_utc_from_ist
+                            conversation.updated_at = now_utc_from_ist()
                             db.commit()
                         
                         # Prepare message response
@@ -181,16 +216,17 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, token: str = No
                             }
                         }
                         
-                        # Send to all participants in conversation
-                        await manager.send_to_conversation(message_response, conversation_id, exclude_user_id=user.id)
-                        
-                        # Send confirmation back to sender
-                        await manager.send_personal_message(message_response, user.id)
+                        # Send to all participants in conversation (only if connection is still valid)
+                        if websocket.client_state.name == "CONNECTED":
+                            await manager.send_to_conversation(message_response, conversation_id, exclude_user_id=user.id)
+                            
+                            # Send confirmation back to sender
+                            await manager.send_personal_message(message_response, user.id)
                     
                     elif message_type == "typing":
-                        # Broadcast typing indicator
+                        # Broadcast typing indicator (only if connection is still valid)
                         conversation_id = message_data.get("conversation_id")
-                        if conversation_id:
+                        if conversation_id and websocket.client_state.name == "CONNECTED":
                             typing_msg = {
                                 "type": "typing",
                                 "conversation_id": conversation_id,
@@ -212,7 +248,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, token: str = No
                                 )
                             ).first()
                             if participant:
-                                participant.last_read_at = datetime.utcnow()
+                                from utils.timezone import now_utc_from_ist
+                                participant.last_read_at = now_utc_from_ist()
                                 db.commit()
                             
                             # Mark messages as read
@@ -228,9 +265,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, token: str = No
                 except json.JSONDecodeError:
                     continue
                 except Exception as e:
-                    print(f"Error processing WebSocket message: {e}")
+                    error_str = str(e).lower()
+                    # Only log non-connection errors to reduce spam
+                    if "not connected" not in error_str and "accept" not in error_str:
+                        print(f"Error processing WebSocket message: {e}")
                     # Check if connection is still open before continuing
-                    if websocket.client_state.name == "DISCONNECTED":
+                    if not hasattr(websocket, 'client_state') or websocket.client_state.name == "DISCONNECTED":
                         break
                     continue
                     

@@ -60,20 +60,32 @@ class DiscoveryQuestionAgent:
         
         # Set up structured output parser
         output_parser = PydanticOutputParser(pydantic_object=DiscoveryQuestionsOutput)
-        format_instructions = output_parser.get_format_instructions()
+        
+        # Simple format instructions without JSON schema to avoid template parsing issues
+        # Use escaped curly braces to prevent LangChain from treating JSON field names as template variables
+        format_instructions_simple = """Return your response as a valid JSON object with question arrays:
+- business_questions: Array of business-related questions
+- technical_questions: Array of technical questions
+- kpi_questions: Array of KPI and metrics questions
+- compliance_questions: Array of compliance questions
+- other_questions: Array of other questions
+
+Example: {{"business_questions": ["..."], "technical_questions": ["..."], ...}}"""
+        
         system_prompt = get_few_shot_discovery_question_prompt()
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", f"""{system_prompt}
+            ("system", system_prompt + """
 
 Organize questions by category: Business, Technology, KPIs, Compliance, and Other.
 Generate 3-5 questions per category.
-
-{format_instructions}"""),
+"""),
             ("user", """Based on these challenges, generate discovery questions:
 
 Challenges:
 {challenges}
+
+{format_instructions}
 
 Provide questions in the specified JSON format.""")
         ])
@@ -82,7 +94,7 @@ Provide questions in the specified JSON format.""")
             chain = prompt | self.llm | output_parser
             response = chain.invoke({
                 "challenges": challenges_text or "No challenges identified",
-                "format_instructions": format_instructions
+                "format_instructions": format_instructions_simple
             })
             
             # Response is already parsed as Pydantic model
